@@ -434,18 +434,16 @@ inline bool operator==(
 	if (lhs.size() != rhs.size())
 		return false;
 
-	using size_type = typename unsigned_map<Key, T>::size_type;
-	for (size_type i = 0; i < lhs._value_indexes.size(); ++i) {
-		if (lhs._value_indexes[i] == lhs.key_sentinel())
-			continue;
-
+	for (const auto& kv : lhs) {
 		// Key doesn't exist in rhs, not equal.
-		if (!rhs.contains(Key(i)))
+		if (!rhs.contains(kv.first))
 			return false;
 
-		if (*lhs.find(Key(i)) != *rhs.find(Key(i)))
+		// Compare value.
+		if (kv != *rhs.find(kv.first))
 			return false;
 	}
+
 	return true;
 }
 template <class Key, class T>
