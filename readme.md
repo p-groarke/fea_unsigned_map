@@ -35,9 +35,9 @@ cmake --build . --target install
 ### Unixes
 ```
 mkdir build && cd build
-..\conan.sh
+../conan.sh
 cmake .. -DBUILD_TESTING=On && cmake --build . --config debug
-bin\fea_unsigned_map_tests.exe
+bin/fea_unsigned_map_tests.exe
 
 // Optionally
 cmake --build . --target install

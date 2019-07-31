@@ -41,11 +41,11 @@ struct unsigned_map {
 
 	using key_type = Key;
 	using mapped_type = T;
-	using value_type = std::pair<const key_type, mapped_type>;
+	using value_type = std::pair<key_type, mapped_type>;
 	using size_type = std::size_t;
 	using difference_type = std::ptrdiff_t;
 
-	using allocator_type = typename std::vector<T>::allocator_type;
+	using allocator_type = typename std::vector<value_type>::allocator_type;
 
 	using reference = value_type&;
 	using const_reference = const reference;
@@ -53,8 +53,8 @@ struct unsigned_map {
 	using const_pointer =
 			typename std::allocator_traits<allocator_type>::const_pointer;
 
-	using iterator = typename std::vector<T>::iterator;
-	using const_iterator = typename std::vector<T>::const_iterator;
+	using iterator = typename std::vector<value_type>::iterator;
+	using const_iterator = typename std::vector<value_type>::const_iterator;
 	using local_iterator = iterator;
 	using const_local_iterator = const_iterator;
 
@@ -75,20 +75,24 @@ struct unsigned_map {
 
 	explicit unsigned_map(size_t reserve_count) {
 		_value_indexes.reserve(reserve_count);
-		_reverse_lookup.reserve(reserve_count);
 		_values.reserve(reserve_count);
 	}
 	explicit unsigned_map(
 			size_t key_reserve_count, size_t value_reserve_count) {
 		_value_indexes.reserve(key_reserve_count);
-		_reverse_lookup.reserve(value_reserve_count);
 		_values.reserve(value_reserve_count);
 	}
 
-	// template <class InputIt>
-	// unsigned_map(InputIt first, InputIt last);
+	template <class InputIt>
+	unsigned_map(InputIt first, InputIt last) {
+		// TODO : benchmark and potentially optimize
+		for (auto it = first; it != last; ++it) {
+			insert(*it);
+		}
+	}
 
 	unsigned_map(std::initializer_list<value_type> init) {
+		// TODO : benchmark and potentially optimize
 		for (const value_type& kv : init) {
 			insert(kv);
 		}
@@ -119,14 +123,6 @@ struct unsigned_map {
 		return _values.cend();
 	}
 
-	// returns underlying packed data
-	const std::vector<T>& data() const {
-		return _values;
-	}
-	std::vector<T>& data() {
-		return _values;
-	}
-
 
 	// Capacity
 
@@ -152,7 +148,6 @@ struct unsigned_map {
 	// clears the contents
 	void clear() noexcept {
 		_value_indexes.clear();
-		_reverse_lookup.clear();
 		_values.clear();
 	}
 
@@ -164,8 +159,14 @@ struct unsigned_map {
 		return minsert(value.first, std::move(value.second));
 	}
 	template <class InputIt>
-	void insert(InputIt first, InputIt last);
+	void insert(InputIt first, InputIt last) {
+		// TODO : benchmark and potentially optimize
+		for (auto it = first; it != last; ++it) {
+			insert(*it);
+		}
+	}
 	void insert(std::initializer_list<value_type> ilist) {
+		// TODO : benchmark and potentially optimize
 		for (const value_type& kv : ilist) {
 			insert(kv);
 		}
@@ -190,10 +191,8 @@ struct unsigned_map {
 		resize_indexes_if_needed(k);
 
 		_value_indexes[size_t(k)] = _values.size();
-		_reverse_lookup.push_back(k);
-		_values.emplace_back(std::get<1>(std::forward_as_tuple(args...)));
+		_values.emplace_back(k, std::get<1>(std::forward_as_tuple(args...)));
 
-		assert(_reverse_lookup.size() == _values.size());
 		return { std::prev(_values.end()), true };
 	}
 	template <class... KeyArgs, class... ObjArgs>
@@ -212,14 +211,13 @@ struct unsigned_map {
 		resize_indexes_if_needed(k);
 
 		_value_indexes[size_t(k)] = _values.size();
-		_reverse_lookup.push_back(k);
 		detail::apply(
-				[this](auto&&... args) {
-					_values.emplace_back(std::forward<decltype(args)>(args)...);
+				[this, k](auto&&... args) {
+					_values.emplace_back(
+							k, std::forward<decltype(args)>(args)...);
 				},
 				obj_args);
 
-		assert(_reverse_lookup.size() == _values.size());
 		return { std::prev(_values.end()), true };
 	}
 
@@ -241,27 +239,32 @@ struct unsigned_map {
 	// erases elements
 	iterator erase(const_iterator pos) {
 		size_t idx = std::distance(_values.cbegin(), pos);
-		erase(_reverse_lookup[idx]);
+		erase(pos->first);
 
-		if (idx >= _reverse_lookup.size())
+		if (idx >= _values.size())
 			return end();
 
-		return find(_reverse_lookup[idx]);
+		return find(_values[idx].first);
 	}
 	iterator erase(const_iterator first, const_iterator last) {
-		size_t start = std::distance(_values.cbegin(), first);
-		size_t finish = std::distance(_values.cbegin(), last) + 1; // inclusive
+		size_t first_idx = std::distance(_values.cbegin(), first);
+		size_t last_idx = std::distance(_values.cbegin(), last);
 
-		std::vector<key_type> keys(std::next(_reverse_lookup.begin(), start),
-				std::next(_reverse_lookup.begin(), finish));
 
-		for (key_type k : keys) {
+		std::vector<key_type> to_erase;
+		to_erase.reserve(last_idx - first_idx);
+		for (auto it = std::next(_values.begin(), first_idx);
+				it != std::next(_values.begin(), last_idx); ++it) {
+			to_erase.push_back(it->first);
+		}
+
+		for (key_type& k : to_erase) {
 			erase(k);
 		}
 
-		if (start >= _reverse_lookup.size())
+		if (first_idx >= _values.size())
 			return end();
-		return find(_reverse_lookup[start]);
+		return find(_values[first_idx].first);
 	}
 	size_type erase(key_type k) {
 		iterator it = find(k);
@@ -275,31 +278,23 @@ struct unsigned_map {
 		// No need for swap, object is already at end.
 		if (last_it == it) {
 			_values.pop_back();
-			_reverse_lookup.pop_back();
-
-			assert(_reverse_lookup.size() == _values.size());
 			return 1;
 		}
 
 		// swap & pop
 		size_t value_idx = std::distance(_values.begin(), it);
-		auto reverse_it = std::next(_reverse_lookup.begin(), value_idx);
-		key_type last_key = _reverse_lookup.back();
+		key_type last_key = _values.back().first;
 
 		std::swap(*it, _values.back());
 		_values.pop_back();
-		std::swap(*reverse_it, _reverse_lookup.back());
-		_reverse_lookup.pop_back();
 		_value_indexes[size_t(last_key)] = value_idx;
 
-		assert(_reverse_lookup.size() == _values.size());
 		return 1;
 	}
 
 	// swaps the contents
 	void swap(unsigned_map& other) noexcept {
 		_value_indexes.swap(other._value_indexes);
-		_reverse_lookup.swap(other._reverse_lookup);
 		_values.swap(other._values);
 	}
 
@@ -317,17 +312,17 @@ struct unsigned_map {
 			throw std::out_of_range{ "unsigned_map : value doesn't exist" };
 		}
 
-		return *it;
+		return it->second;
 	}
 
 	// access or insert specified element
 	mapped_type& operator[](key_type k) {
 		iterator it = find(k);
 		if (it != end()) {
-			return *it;
+			return it->second;
 		}
 
-		return *insert({ k, {} }).first;
+		return insert({ k, {} }).first->second;
 	}
 
 	// returns the number of elements matching specific key (which is 1 or 0,
@@ -420,7 +415,7 @@ private:
 		iterator it = find(k);
 		if (it != end()) {
 			if (assign_found) {
-				*it = std::forward<M>(obj);
+				it->second = std::forward<M>(obj);
 			}
 			return { it, false };
 		}
@@ -428,16 +423,12 @@ private:
 		resize_indexes_if_needed(k);
 
 		_value_indexes[size_t(k)] = _values.size();
-		_reverse_lookup.push_back(k);
-		_values.push_back(std::forward<M>(obj));
-
-		assert(_reverse_lookup.size() == _values.size());
+		_values.push_back({ k, std::forward<M>(obj) });
 		return { std::prev(_values.end()), true };
 	}
 
-	std::vector<size_type> _value_indexes;
-	std::vector<key_type> _reverse_lookup;
-	std::vector<mapped_type> _values;
+	std::vector<size_type> _value_indexes; // key -> position
+	std::vector<value_type> _values; // pair with reverse_lookup
 };
 
 template <class Key, class T>
