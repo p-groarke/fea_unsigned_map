@@ -1,8 +1,10 @@
 #pragma once
 #include <cassert>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -16,6 +18,22 @@
 // - Doesn't provide hint apis.
 
 namespace fea {
+namespace detail {
+
+// std::apply in c++17
+template <class Func, class Tuple, size_t... I>
+inline constexpr void apply_imp(
+		Func&& func, Tuple&& tup, std::index_sequence<I...>) {
+	std::forward<Func>(func)(std::get<I>(std::forward<Tuple>(tup))...);
+}
+template <class Func, class Tuple>
+inline constexpr void apply(Func&& func, Tuple&& tup) {
+	apply_imp(std::forward<Func>(func), std::forward<Tuple>(tup),
+			std::make_index_sequence<std::tuple_size<
+					std::remove_reference<Tuple>::type>::value>{});
+}
+} // namespace detail
+
 template <class Key, class T>
 struct unsigned_map {
 	static_assert(std::is_unsigned<Key>::value,
@@ -40,11 +58,12 @@ struct unsigned_map {
 	using local_iterator = iterator;
 	using const_local_iterator = const_iterator;
 
-	// Don't make sense?
+	// Don't make sense
 	// using hasher = std::hash<key_type>;
 	// using key_equal = std::equal_to<key_type>;
 	// using node_type;
 	// using insert_return_type;
+
 
 	// Constructors, destructors and assignement
 
@@ -65,6 +84,16 @@ struct unsigned_map {
 		_reverse_lookup.reserve(value_reserve_count);
 		_values.reserve(value_reserve_count);
 	}
+
+	// template <class InputIt>
+	// unsigned_map(InputIt first, InputIt last);
+
+	unsigned_map(std::initializer_list<value_type> init) {
+		for (const value_type& kv : init) {
+			insert(kv);
+		}
+	}
+
 
 	// Iterators
 
@@ -90,6 +119,15 @@ struct unsigned_map {
 		return _values.cend();
 	}
 
+	// returns underlying packed data
+	const std::vector<T>& data() const {
+		return _values;
+	}
+	std::vector<T>& data() {
+		return _values;
+	}
+
+
 	// Capacity
 
 	// checks whether the container is empty
@@ -108,6 +146,7 @@ struct unsigned_map {
 		return _value_indexes.max_size() - 1;
 	}
 
+
 	// Modifiers
 
 	// clears the contents
@@ -119,43 +158,32 @@ struct unsigned_map {
 
 	// inserts elements or nodes
 	std::pair<iterator, bool> insert(const value_type& value) {
-		iterator it = find(value.first);
-		if (it != end()) {
-			return { it, false };
-		}
-
-		resize_indexes_if_needed(value.first);
-
-		_value_indexes[size_t(value.first)] = _values.size();
-		_reverse_lookup.push_back(value.first);
-		_values.push_back(value.second);
-
-		assert(_reverse_lookup.size() == _values.size());
-		return { std::prev(end()), true };
+		return minsert(value.first, value.second);
 	}
 	std::pair<iterator, bool> insert(value_type&& value) {
-		iterator it = find(value.first);
-		if (it != end()) {
-			return { it, false };
+		return minsert(value.first, std::move(value.second));
+	}
+	template <class InputIt>
+	void insert(InputIt first, InputIt last);
+	void insert(std::initializer_list<value_type> ilist) {
+		for (const value_type& kv : ilist) {
+			insert(kv);
 		}
-
-		resize_indexes_if_needed(value.first);
-
-		_value_indexes[size_t(value.first)] = _values.size();
-		_reverse_lookup.push_back(value.first);
-		_values.push_back(std::move(value.second));
-
-		assert(_reverse_lookup.size() == _values.size());
-		return { std::prev(end()), true };
 	}
 
 	// inserts an element or assigns to the current element if the key already
 	// exists
 	template <class M>
 	std::pair<iterator, bool> insert_or_assign(key_type k, M&& obj) {
+		return minsert(k, std::forward<M>(obj), true);
+	}
+
+	// constructs element in-place
+	template <class... Args>
+	std::pair<iterator, bool> emplace(Args&&... args) {
+		Key k = std::get<0>(std::forward_as_tuple(args...));
 		iterator it = find(k);
 		if (it != end()) {
-			operator[](k) = std::forward<M>(obj);
 			return { it, false };
 		}
 
@@ -163,21 +191,52 @@ struct unsigned_map {
 
 		_value_indexes[size_t(k)] = _values.size();
 		_reverse_lookup.push_back(k);
-		_values.push_back(std::forward<M>(obj));
+		_values.emplace_back(std::get<1>(std::forward_as_tuple(args...)));
 
 		assert(_reverse_lookup.size() == _values.size());
-		return { std::prev(end()), true };
+		return { std::prev(_values.end()), true };
+	}
+	template <class... KeyArgs, class... ObjArgs>
+	std::pair<iterator, bool> emplace(std::piecewise_construct_t,
+			std::tuple<KeyArgs&&...> key_args,
+			std::tuple<ObjArgs&&...> obj_args) {
+
+		Key k;
+		detail::apply([&](auto&& key, auto&&...) { k = key; }, key_args);
+		iterator it = find(k);
+
+		if (it != end()) {
+			return { it, false };
+		}
+
+		resize_indexes_if_needed(k);
+
+		_value_indexes[size_t(k)] = _values.size();
+		_reverse_lookup.push_back(k);
+		detail::apply(
+				[this](auto&&... args) {
+					_values.emplace_back(std::forward<decltype(args)>(args)...);
+				},
+				obj_args);
+
+		assert(_reverse_lookup.size() == _values.size());
+		return { std::prev(_values.end()), true };
 	}
 
-	// emplace
-	// constructs element in-place
-
-	// emplace_hint
-	//	constructs elements in-place using a hint
-
-	// try_emplace
 	// inserts in-place if the key does not exist, does nothing if the key
 	// exists
+	template <class... Args>
+	std::pair<iterator, bool> try_emplace(Args&&... args) {
+		// Standard emplace behavior doesn't apply, always use try_emplace
+		// behavior.
+		return emplace(std::forward<Args>(args)...);
+	}
+	template <class... KeyArgs, class... ObjArgs>
+	std::pair<iterator, bool> try_emplace(std::piecewise_construct_t,
+			std::tuple<KeyArgs&&...> key_args,
+			std::tuple<ObjArgs&&...> obj_args) {
+		return emplace(std::piecewise_construct, key_args, obj_args);
+	}
 
 	// erases elements
 	iterator erase(const_iterator pos) {
@@ -237,8 +296,13 @@ struct unsigned_map {
 		return 1;
 	}
 
-	// swap
 	// swaps the contents
+	void swap(unsigned_map& other) noexcept {
+		_value_indexes.swap(other._value_indexes);
+		_reverse_lookup.swap(other._reverse_lookup);
+		_values.swap(other._values);
+	}
+
 
 	// Lookup
 
@@ -319,6 +383,7 @@ struct unsigned_map {
 		return { it, std::next(it) };
 	}
 
+
 	// Non-member functions
 
 	//	compares the values in the unordered_map
@@ -329,8 +394,6 @@ struct unsigned_map {
 	friend bool operator!=(
 			const unsigned_map<Key, T>& lhs, const unsigned_map<Key, T>& rhs);
 
-	// std::swap(std::unordered_map)
-	//	specializes the std::swap algorithm
 	// erase_if(std::unordered_map)
 	//	Erases all elements satisfying specific criteria
 
@@ -349,6 +412,27 @@ private:
 		}
 
 		_value_indexes.resize(size_t(k) + 1, key_sentinel());
+	}
+
+	template <class M>
+	std::pair<iterator, bool> minsert(
+			key_type k, M&& obj, bool assign_found = false) {
+		iterator it = find(k);
+		if (it != end()) {
+			if (assign_found) {
+				*it = std::forward<M>(obj);
+			}
+			return { it, false };
+		}
+
+		resize_indexes_if_needed(k);
+
+		_value_indexes[size_t(k)] = _values.size();
+		_reverse_lookup.push_back(k);
+		_values.push_back(std::forward<M>(obj));
+
+		assert(_reverse_lookup.size() == _values.size());
+		return { std::prev(_values.end()), true };
 	}
 
 	std::vector<size_type> _value_indexes;
@@ -386,7 +470,8 @@ inline bool operator!=(
 
 namespace std {
 template <class Key, class T>
-inline void swap(
-		fea::unsigned_map<Key, T>& lhs, fea::unsigned_map<Key, T>& rhs) {
+inline void swap(fea::unsigned_map<Key, T>& lhs,
+		fea::unsigned_map<Key, T>& rhs) noexcept {
+	lhs.swap(rhs);
 }
 } // namespace std

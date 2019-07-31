@@ -1,9 +1,20 @@
 #include <fea_unsigned_map/fea_unsigned_map.hpp>
 #include <gtest/gtest.h>
-//#include <unordered_map>
+#include <unordered_map>
 
 namespace {
 struct test {
+	test() = default;
+	~test() = default;
+	test(const test&) = default;
+	test(test&&) = default;
+	test& operator=(const test&) = default;
+	test& operator=(test&&) = default;
+
+	test(size_t v)
+			: val(v) {
+	}
+
 	size_t val = 42;
 };
 bool operator==(const test& lhs, const test& rhs) {
@@ -146,7 +157,7 @@ TEST(unsigned_map, basics) {
 	}
 	EXPECT_EQ(map1.size(), small_num / 2);
 
-	for (auto t : map1) {
+	for (auto t : map1.data()) {
 		EXPECT_EQ(t.val % 2, 0);
 	}
 
@@ -166,7 +177,22 @@ TEST(unsigned_map, basics) {
 
 	map1 = map2;
 
-	map1.insert({ 19, { 19 } });
+	{
+		auto ret_pair1 = map1.insert({ 19, { 19 } });
+		EXPECT_TRUE(ret_pair1.second);
+
+		auto ret_pair2 = map1.insert({ 19, { 42 } });
+		EXPECT_FALSE(ret_pair2.second);
+		EXPECT_EQ(ret_pair2.first, ret_pair1.first);
+		EXPECT_EQ(map1.at(19), test{ 19 });
+
+		ret_pair2 = map1.insert_or_assign(19, test{ 42 });
+		EXPECT_FALSE(ret_pair2.second);
+		EXPECT_EQ(ret_pair2.first, ret_pair1.first);
+		EXPECT_EQ(map1.at(19), test{ 42 });
+		ret_pair2 = map1.insert_or_assign(19, test{ 19 });
+	}
+
 	map2.insert({ 20, { 20 } });
 	map3.insert({ 20, { 20 } });
 	EXPECT_NE(map1, map2);
@@ -183,11 +209,87 @@ TEST(unsigned_map, basics) {
 		EXPECT_EQ(ret_pair.first, ret_pair.second);
 	}
 
+	{
+		map1.emplace(20, test{ 20 });
+		test t{ 21 };
+		map1.emplace(21, t);
+		map1.emplace(std::piecewise_construct, std::forward_as_tuple(22),
+				std::forward_as_tuple(size_t{ 22 }));
+	}
+
+	map1 = map2;
+	map3 = map2;
+
+	map1 = fea::unsigned_map<size_t, test>(
+			{ { 0, { 0 } }, { 1, { 1 } }, { 2, { 2 } } });
+	map2 = fea::unsigned_map<size_t, test>(
+			{ { 3, { 3 } }, { 4, { 4 } }, { 5, { 5 } } });
+	map3 = fea::unsigned_map<size_t, test>(
+			{ { 6, { 6 } }, { 7, { 7 } }, { 8, { 8 } } });
+
+	EXPECT_EQ(map1.size(), 3);
+	EXPECT_TRUE(map1.contains(0));
+	EXPECT_TRUE(map1.contains(1));
+	EXPECT_TRUE(map1.contains(2));
+	EXPECT_EQ(map1.at(0), test{ 0 });
+	EXPECT_EQ(map1[1], test{ 1 });
+	EXPECT_EQ(*map1.find(2), test{ 2 });
+
+	EXPECT_EQ(map2.size(), 3);
+	EXPECT_TRUE(map2.contains(3));
+	EXPECT_TRUE(map2.contains(4));
+	EXPECT_TRUE(map2.contains(5));
+	EXPECT_EQ(map2.at(3), test{ 3 });
+	EXPECT_EQ(map2[4], test{ 4 });
+	EXPECT_EQ(*map2.find(5), test{ 5 });
+
+	EXPECT_EQ(map3.size(), 3);
+	EXPECT_TRUE(map3.contains(6));
+	EXPECT_TRUE(map3.contains(7));
+	EXPECT_TRUE(map3.contains(8));
+	EXPECT_EQ(map3.at(6), test{ 6 });
+	EXPECT_EQ(map3[7], test{ 7 });
+	EXPECT_EQ(*map3.find(8), test{ 8 });
+
+	{
+		fea::unsigned_map<size_t, test> map1_back = map1;
+		fea::unsigned_map<size_t, test> map2_back{ map2 };
+		fea::unsigned_map<size_t, test> map3_back{ map3 };
+
+		map1.swap(map2);
+		EXPECT_EQ(map1, map2_back);
+		EXPECT_EQ(map2, map1_back);
+
+		using std::swap;
+		swap(map1, map3);
+
+		EXPECT_EQ(map1, map3_back);
+		EXPECT_EQ(map3, map2_back);
+
+		map1.swap(map2);
+		EXPECT_EQ(map1, map1_back);
+	}
+
+	map1.insert({ { 3, { 3 } }, { 4, { 4 } }, { 5, { 5 } } });
+
+	EXPECT_EQ(map1.size(), 6);
+	EXPECT_TRUE(map1.contains(0));
+	EXPECT_TRUE(map1.contains(1));
+	EXPECT_TRUE(map1.contains(2));
+	EXPECT_TRUE(map1.contains(3));
+	EXPECT_TRUE(map1.contains(4));
+	EXPECT_TRUE(map1.contains(5));
+
+	EXPECT_EQ(map1.at(0), test{ 0 });
+	EXPECT_EQ(map1[1], test{ 1 });
+	EXPECT_EQ(*map1.find(2), test{ 2 });
+	EXPECT_EQ(map1.at(3), test{ 3 });
+	EXPECT_EQ(map1[4], test{ 4 });
+	EXPECT_EQ(*map1.find(5), test{ 5 });
+
 	// std::unordered_map<size_t, test> compare_map;
-	// decltype(compare_map)::allocator_type;
-	// decltype(compare_map)::hasher;
-	// decltype(compare_map)::key_equal;
-	// auto it = compare_map.begin();
+	// compare_map.emplace(std::piecewise_construct, std::forward_as_tuple(0),
+	//		std::forward_as_tuple(42));
 }
 
 } // namespace
