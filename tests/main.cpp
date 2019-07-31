@@ -1,6 +1,5 @@
 #include <fea_unsigned_map/fea_unsigned_map.hpp>
 #include <gtest/gtest.h>
-#include <unordered_map>
 
 namespace {
 struct test {
@@ -297,11 +296,6 @@ TEST(unsigned_map, basics) {
 	EXPECT_EQ(map1, map3);
 	EXPECT_EQ(map2.size(), map3.size());
 	EXPECT_EQ(map2, map3);
-
-	// std::unordered_map<size_t, test> compare_map;
-	// auto it = compare_map.begin();
-	// compare_map.emplace(std::piecewise_construct, std::forward_as_tuple(0),
-	//	std::forward_as_tuple(42));
 }
 
 } // namespace

@@ -9,12 +9,9 @@
 #include <utility>
 #include <vector>
 
-// TODO : Actual iterators that return pairs (or equivalent). This will enable
-// support for range ctors/inserts etc.
-
 // Notes :
-// - The container doesn't use const key_type& as the value of a key will
-// always be smaller or equally sized to a reference.
+// - The container doesn't use const key_type& in apis, it uses key_type. The
+// value of a key will always be smaller or equally sized to a reference.
 // - Doesn't provide hint apis.
 
 namespace fea {
@@ -37,7 +34,7 @@ inline constexpr void apply(Func&& func, Tuple&& tup) {
 template <class Key, class T>
 struct unsigned_map {
 	static_assert(std::is_unsigned<Key>::value,
-			"number_map : key must be unsigned integer");
+			"unsigned_map : key must be unsigned integer");
 
 	using key_type = Key;
 	using mapped_type = T;
