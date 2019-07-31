@@ -386,9 +386,6 @@ struct unsigned_map {
 	friend bool operator!=(
 			const unsigned_map<Key, T>& lhs, const unsigned_map<Key, T>& rhs);
 
-	// erase_if(std::unordered_map)
-	//	Erases all elements satisfying specific criteria
-
 private:
 	constexpr size_type key_sentinel() const noexcept {
 		return (std::numeric_limits<size_type>::max)();
