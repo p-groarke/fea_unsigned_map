@@ -119,7 +119,7 @@ struct unsigned_map {
 		}
 	}
 
-	unsigned_map(std::initializer_list<value_type> init) {
+	explicit unsigned_map(std::initializer_list<value_type> init) {
 		// TODO : benchmark and potentially optimize
 		for (const value_type& kv : init) {
 			insert(kv);
