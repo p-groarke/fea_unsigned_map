@@ -27,6 +27,10 @@ TEST(unsigned_map, basics) {
 	constexpr size_t small_num = 10;
 
 	fea::unsigned_map<size_t, test> map1{ small_num };
+	map1.reserve(100);
+	EXPECT_EQ(map1.capacity(), 100);
+	map1.shrink_to_fit();
+	EXPECT_EQ(map1.capacity(), 0);
 	EXPECT_TRUE(map1.empty());
 	EXPECT_EQ(map1.size(), 0);
 	EXPECT_FALSE(map1.contains(1));

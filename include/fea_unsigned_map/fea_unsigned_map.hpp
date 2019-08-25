@@ -60,6 +60,14 @@ inline constexpr void apply(Func&& func, Tuple&& tup) {
 			std::make_index_sequence<std::tuple_size<
 					std::remove_reference<Tuple>::type>::value>{});
 }
+
+template <class T>
+constexpr std::conditional_t<
+		!std::is_move_constructible_v<T> && std::is_copy_constructible_v<T>,
+		const T&, T&&>
+maybe_move(T& _Arg) noexcept {
+	return std::move(_Arg);
+}
 } // namespace detail
 
 template <class Key, class T>
@@ -170,6 +178,23 @@ struct unsigned_map {
 		return _value_indexes.max_size() - 1;
 	}
 
+	// reserves storage
+	void reserve(size_type new_cap) {
+		_value_indexes.reserve(new_cap);
+		_values.reserve(new_cap);
+	}
+
+	// returns the number of elements that can be held in currently allocated
+	// storage
+	size_type capacity() const noexcept {
+		return _values.capacity();
+	}
+
+	// reduces memory usage by freeing unused memory
+	void shrink_to_fit() {
+		_value_indexes.shrink_to_fit();
+		_values.shrink_to_fit();
+	}
 
 	// Modifiers
 
@@ -184,7 +209,7 @@ struct unsigned_map {
 		return minsert(value.first, value.second);
 	}
 	std::pair<iterator, bool> insert(value_type&& value) {
-		return minsert(value.first, std::move(value.second));
+		return minsert(value.first, detail::maybe_move(value.second));
 	}
 	template <class InputIt>
 	void insert(InputIt first, InputIt last) {

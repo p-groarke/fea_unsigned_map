@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.10)
 project(fea_unsigned_map VERSION 1.0.0 LANGUAGES CXX)
 
+include(ExternalProject)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(GoogleTest)
@@ -89,6 +90,12 @@ install(
 
 export(PACKAGE ${PROJECT_NAME})
 
+
+##
+# External projects
+##
+
+
 # Tests
 option(BUILD_TESTING "Build and run tests." Off)
 if (${BUILD_TESTING})
@@ -114,5 +121,40 @@ if (${BUILD_TESTING})
 		target_compile_options(${TEST_NAME} PRIVATE /W4 /WX /EHsc /Zc:__cplusplus /FAs /permissive-)
 		target_compile_definitions(${TEST_NAME} PRIVATE NOMINMAX)
 		set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${TEST_NAME})
+	endif()
+endif()
+
+# Benchmarks
+option(BUILD_BENCHMARKS "Build and run benchmarks." Off)
+if (${BUILD_BENCHMARKS})
+
+	set(LIB_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
+	ExternalProject_Add(bench_util_ext
+		GIT_REPOSITORY https://github.com/p-groarke/bench_util.git
+		CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release #${CMAKE_ARGS}
+			-DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}
+			-DCMAKE_PREFIX_PATH=${CMAKE_CURRENT_BINARY_DIR}
+			-DBUILD_EXAMPLES=Off
+		UPDATE_COMMAND ""
+	)
+	set_target_properties(bench_util_ext PROPERTIES FOLDER ${DEPENDENCY_FOLDER})
+
+	set(BENCHMARK_NAME ${PROJECT_NAME}_benchmarks)
+	file(GLOB_RECURSE BENCHMARK_SOURCES "benchmarks/*.cpp" "benchmarks/*.c" "benchmarks/*.hpp" "benchmarks/*.h" "benchmarks/*.tpp")
+	add_executable(${BENCHMARK_NAME} ${BENCHMARK_SOURCES})
+	target_link_libraries(${BENCHMARK_NAME} PRIVATE ${PROJECT_NAME})
+	target_include_directories(${BENCHMARK_NAME} PUBLIC ${LIB_INCLUDE_DIR})
+	# add_dependencies(${BENCHMARK_NAME} bench_util_ext)
+	add_dependencies(${BENCHMARK_NAME} ${PROJECT_NAME} bench_util_ext)
+
+	if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+		target_compile_options(${BENCHMARK_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+	elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+		target_compile_options(${BENCHMARK_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+	elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+		# using Intel C++
+	elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+		target_compile_options(${BENCHMARK_NAME} PRIVATE /W4 /WX /EHsc /Zc:__cplusplus /FAs /permissive-)
+		target_compile_definitions(${BENCHMARK_NAME} PRIVATE NOMINMAX)
 	endif()
 endif()
