@@ -14,14 +14,18 @@ Internal container and allocator are *not* customizable at this time.
 ## Build
 `fea_unsigned_map` is a single header with no dependencies other than the stl.
 
-The unit tests depend on gtest. They are not built by default. Use conan to install the dependencies when running the test suite.
+Currently only tested on Windows.
+
+Unit tests and benchmarks are not built by default.
+Use conan to install the dependencies when running the test suite.
 
 ### Windows
 ```
 mkdir build && cd build
 ..\conan.bat
-cmake .. -A x64 -DBUILD_TESTING=On && cmake --build . --config debug
+cmake .. -A x64 -DBUILD_TESTING=On -DBUILD_BENCHMARKS=On && cmake --build . --config debug
 bin\fea_unsigned_map_tests.exe
+bin\fea_unsigned_map_benchmarks.exe
 
 // Optionally
 cmake --build . --target install
@@ -31,8 +35,9 @@ cmake --build . --target install
 ```
 mkdir build && cd build
 ../conan.sh
-cmake .. -DBUILD_TESTING=On && cmake --build . --config debug
-bin/fea_unsigned_map_tests.exe
+cmake .. -DBUILD_TESTING=On -DBUILD_BENCHMARKS=On && cmake --build . --config debug
+bin/fea_unsigned_map_tests
+bin/fea_unsigned_map_benchmarks
 
 // Optionally
 cmake --build . --target install
