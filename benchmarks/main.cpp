@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <fea_unsigned_map/fea_unsigned_map.hpp>
 #include <map>
+#include <random>
 #include <string>
 #include <unordered_map>
 
@@ -89,6 +90,43 @@ void benchmarks(const std::vector<size_t>& keys) {
 	// printf("%u\n", unordered_map_big[rand() % num_keys].x);
 	// printf("%u\n", unsigned_map_big[rand() % num_keys].x);
 
+
+	// Bench : copy ctor
+	title.fill('\0');
+	std::snprintf(title.data(), title.size(), "Copy ctor %zu small objects",
+			keys.size());
+	suite.title(title.data());
+
+	suite.benchmark("std::map copy ctor",
+			[&]() { std::map<size_t, small_obj> cpy(map_small); });
+	suite.benchmark("std::unordered_map copy ctor", [&]() {
+		std::unordered_map<size_t, small_obj> cpy(unordered_map_small);
+	});
+	suite.benchmark("fea::unsigned_map copy ctor", [&]() {
+		fea::unsigned_map<size_t, small_obj> cpy(unsigned_map_small);
+	});
+	suite.print();
+	suite.clear();
+
+
+	// Bench : copy ctor big
+	title.fill('\0');
+	std::snprintf(title.data(), title.size(), "Copy ctor %zu big objects",
+			keys.size());
+	suite.title(title.data());
+
+	suite.benchmark("std::map copy ctor",
+			[&]() { std::map<size_t, big_obj> cpy(map_big); });
+	suite.benchmark("std::unordered_map copy ctor", [&]() {
+		std::unordered_map<size_t, big_obj> cpy(unordered_map_big);
+	});
+	suite.benchmark("fea::unsigned_map copy ctor", [&]() {
+		fea::unsigned_map<size_t, big_obj> cpy(unsigned_map_big);
+	});
+	suite.print();
+	suite.clear();
+
+
 	// Bench : clear small
 	title.fill('\0');
 	std::snprintf(
@@ -167,6 +205,88 @@ void benchmarks(const std::vector<size_t>& keys) {
 	suite.benchmark("fea::unsigned_map insert", [&]() {
 		for (size_t i = 0; i < keys.size(); ++i) {
 			unsigned_map_big.insert({ keys[i], {} });
+		}
+	});
+	suite.print();
+	suite.clear();
+	map_big.clear();
+	unordered_map_big.clear();
+	unsigned_map_big.clear();
+
+
+	// Bench : erase small_obj
+	for (size_t i = 0; i < keys.size(); ++i) {
+		map_small.insert({ keys[i], { float(i), float(i), float(i) } });
+	}
+	for (size_t i = 0; i < keys.size(); ++i) {
+		unordered_map_small.insert(
+				{ keys[i], { float(i), float(i), float(i) } });
+	}
+	for (size_t i = 0; i < keys.size(); ++i) {
+		unsigned_map_small.insert(
+				{ keys[i], { float(i), float(i), float(i) } });
+	}
+
+	title.fill('\0');
+	std::snprintf(title.data(), title.size(),
+			"Erase %zu (all) small objects at random",
+			unsigned_map_small.size());
+	suite.title(title.data());
+
+	std::vector<size_t> random_keys = keys;
+	std::random_shuffle(random_keys.begin(), random_keys.end());
+
+	suite.benchmark("std::map erase", [&]() {
+		for (size_t i = 0; i < random_keys.size(); ++i) {
+			map_small.erase(random_keys[i]);
+		}
+	});
+	suite.benchmark("std::unordered_map erase", [&]() {
+		for (size_t i = 0; i < random_keys.size(); ++i) {
+			unordered_map_small.erase(random_keys[i]);
+		}
+	});
+	suite.benchmark("fea::unsigned_map erase", [&]() {
+		for (size_t i = 0; i < random_keys.size(); ++i) {
+			unsigned_map_small.erase(random_keys[i]);
+		}
+	});
+	suite.print();
+	suite.clear();
+	map_small.clear();
+	unordered_map_small.clear();
+	unsigned_map_small.clear();
+
+
+	// Bench : erase big_obj
+	for (size_t i = 0; i < keys.size(); ++i) {
+		map_big.insert({ keys[i], {} });
+	}
+	for (size_t i = 0; i < keys.size(); ++i) {
+		unordered_map_big.insert({ keys[i], {} });
+	}
+	for (size_t i = 0; i < keys.size(); ++i) {
+		unsigned_map_big.insert({ keys[i], {} });
+	}
+
+	title.fill('\0');
+	std::snprintf(title.data(), title.size(),
+			"Erase %zu (all) big objects at random", unsigned_map_big.size());
+	suite.title(title.data());
+
+	suite.benchmark("std::map erase", [&]() {
+		for (size_t i = 0; i < random_keys.size(); ++i) {
+			map_big.erase(random_keys[i]);
+		}
+	});
+	suite.benchmark("std::unordered_map erase", [&]() {
+		for (size_t i = 0; i < random_keys.size(); ++i) {
+			unordered_map_big.erase(random_keys[i]);
+		}
+	});
+	suite.benchmark("fea::unsigned_map erase", [&]() {
+		for (size_t i = 0; i < random_keys.size(); ++i) {
+			unsigned_map_big.erase(random_keys[i]);
 		}
 	});
 	suite.print();
@@ -325,54 +445,87 @@ void benchmarks(const std::vector<size_t>& keys) {
 int main(int, char**) {
 	srand(static_cast<unsigned int>(
 			std::chrono::system_clock::now().time_since_epoch().count()));
-
-
-	// Random keys.
 	std::vector<size_t> keys;
 	keys.reserve(num_keys);
-	for (size_t i = 0; i < num_keys; ++i) {
-		keys.push_back(rand() % num_keys);
-	}
 
 	std::array<char, 128> title;
 	title.fill('\0');
-	std::snprintf(title.data(), title.size(),
-			"Benchmark using %zu random keys, with duplicates", num_keys);
-	bench::title(title.data());
-
-	benchmarks(keys);
-
 
 	// Linear keys, 0 to N
-	keys.clear();
-	for (size_t i = 0; i < num_keys / 2; ++i) {
-		keys.push_back(i);
+	{
+		keys.clear();
+		for (size_t i = 0; i < num_keys / 2; ++i) {
+			keys.push_back(i);
+		}
+
+		printf("\n\n");
+		title.fill('\0');
+		std::snprintf(title.data(), title.size(),
+				"Benchmark using linear keys, 0 to %zu, no duplicates",
+				num_keys / 2);
+		bench::title(title.data());
+
+		benchmarks(keys);
 	}
-
-	printf("\n\n");
-	title.fill('\0');
-	std::snprintf(title.data(), title.size(),
-			"Benchmark using linear keys, 0 to %zu, no duplicates",
-			num_keys / 2);
-	bench::title(title.data());
-
-	benchmarks(keys);
 
 
 	// Linear keys, N to 0
-	keys.clear();
-	for (long long i = long long(num_keys / 2 - 1); i >= 0; --i) {
-		keys.push_back(size_t(i));
+	{
+		keys.clear();
+		for (long long i = long long(num_keys / 2 - 1); i >= 0; --i) {
+			keys.push_back(size_t(i));
+		}
+
+		printf("\n\n");
+		title.fill('\0');
+		std::snprintf(title.data(), title.size(),
+				"Benchmark using linear keys, %zu to 0, no duplicates",
+				num_keys / 2);
+		bench::title(title.data());
+
+		benchmarks(keys);
 	}
 
-	printf("\n\n");
-	title.fill('\0');
-	std::snprintf(title.data(), title.size(),
-			"Benchmark using linear keys, %zu to 0, no duplicates",
-			num_keys / 2);
-	bench::title(title.data());
 
-	benchmarks(keys);
+	// Random keys.
+	{
+		std::random_device rd{};
+		std::mt19937_64 gen{ rd() };
+		std::uniform_int_distribution<size_t> dis{ 0, num_keys / 4 };
+
+		keys.clear();
+		for (size_t i = 0; i < num_keys; ++i) {
+			keys.push_back(dis(gen));
+		}
+
+		printf("\n\n");
+		title.fill('\0');
+		std::snprintf(title.data(), title.size(),
+				"Benchmark using %zu random uniform distribution keys, with "
+				"duplicates",
+				num_keys);
+		bench::title(title.data());
+
+		benchmarks(keys);
+	}
+
+
+	// Random keys.
+	{
+		keys.clear();
+		for (size_t i = 0; i < num_keys; ++i) {
+			keys.push_back(rand() % num_keys);
+		}
+
+		printf("\n\n");
+		title.fill('\0');
+		std::snprintf(title.data(), title.size(),
+				"Benchmark using %zu rand() keys, many duplicates", num_keys);
+		bench::title(title.data());
+
+		benchmarks(keys);
+	}
+
 
 	return 0;
 }

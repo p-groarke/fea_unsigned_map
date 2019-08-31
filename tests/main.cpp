@@ -302,6 +302,9 @@ TEST(unsigned_map, basics) {
 	EXPECT_EQ(map2, map3);
 }
 
+TEST(unsigned_map, random) {
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
