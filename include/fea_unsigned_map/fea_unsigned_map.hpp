@@ -65,12 +65,12 @@ template <class T>
 inline constexpr std::conditional_t<
 		!std::is_move_constructible_v<T> && std::is_copy_constructible_v<T>,
 		const T&, T&&>
-maybe_move(T& _Arg) noexcept {
-	return std::move(_Arg);
+maybe_move(T& arg) noexcept {
+	return std::move(arg);
 }
 
 template <class T>
-inline void maybe_swap(T& left, T& right) {
+inline void swap_maybe_move(T& left, T& right) {
 	T tmp = maybe_move(left);
 	left = maybe_move(right);
 	right = maybe_move(tmp);
@@ -345,7 +345,7 @@ struct unsigned_map {
 		size_t value_idx = std::distance(_values.begin(), it);
 		key_type last_key = _values.back().first;
 
-		detail::maybe_swap(*it, _values.back());
+		detail::swap_maybe_move(*it, _values.back());
 		_values.pop_back();
 		_value_indexes[size_t(last_key)] = value_idx;
 

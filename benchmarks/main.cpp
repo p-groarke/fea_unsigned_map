@@ -94,7 +94,7 @@ void benchmarks(const std::vector<size_t>& keys) {
 	// Bench : copy ctor
 	title.fill('\0');
 	std::snprintf(title.data(), title.size(), "Copy ctor %zu small objects",
-			keys.size());
+			map_small.size());
 	suite.title(title.data());
 
 	suite.benchmark("std::map copy ctor",
@@ -112,7 +112,7 @@ void benchmarks(const std::vector<size_t>& keys) {
 	// Bench : copy ctor big
 	title.fill('\0');
 	std::snprintf(title.data(), title.size(), "Copy ctor %zu big objects",
-			keys.size());
+			map_big.size());
 	suite.title(title.data());
 
 	suite.benchmark("std::map copy ctor",
@@ -129,8 +129,8 @@ void benchmarks(const std::vector<size_t>& keys) {
 
 	// Bench : clear small
 	title.fill('\0');
-	std::snprintf(
-			title.data(), title.size(), "Clear %zu small objects", keys.size());
+	std::snprintf(title.data(), title.size(), "Clear %zu small objects",
+			map_small.size());
 	suite.title(title.data());
 
 	suite.benchmark("std::map clear", [&]() { map_small.clear(); });
@@ -143,8 +143,8 @@ void benchmarks(const std::vector<size_t>& keys) {
 
 	// Bench : clear big
 	title.fill('\0');
-	std::snprintf(
-			title.data(), title.size(), "Clear %zu big objects", keys.size());
+	std::snprintf(title.data(), title.size(), "Clear %zu big objects",
+			map_big.size());
 	suite.title(title.data());
 
 	suite.benchmark("std::map clear", [&]() { map_big.clear(); });
@@ -297,7 +297,6 @@ void benchmarks(const std::vector<size_t>& keys) {
 
 
 	// Bench : insert small_obj reserves
-	printf("\n");
 	title.fill('\0');
 	std::snprintf(title.data(), title.size(),
 			"Insert %zu small objects after reserve", keys.size());
@@ -458,7 +457,6 @@ int main(int, char**) {
 			keys.push_back(i);
 		}
 
-		printf("\n\n");
 		title.fill('\0');
 		std::snprintf(title.data(), title.size(),
 				"Benchmark using linear keys, 0 to %zu, no duplicates",
