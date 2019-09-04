@@ -68,13 +68,6 @@ inline constexpr std::conditional_t<
 maybe_move(T& arg) noexcept {
 	return std::move(arg);
 }
-
-template <class T>
-inline void swap_maybe_move(T& left, T& right) {
-	T tmp = maybe_move(left);
-	left = maybe_move(right);
-	right = maybe_move(tmp);
-}
 } // namespace detail
 
 template <class Key, class T>
@@ -345,7 +338,7 @@ struct unsigned_map {
 		size_t value_idx = std::distance(_values.begin(), it);
 		key_type last_key = _values.back().first;
 
-		detail::swap_maybe_move(*it, _values.back());
+		*it = detail::maybe_move(_values.back());
 		_values.pop_back();
 		_value_indexes[size_t(last_key)] = value_idx;
 
