@@ -353,6 +353,13 @@ struct unsigned_map {
 
 
 	// Lookup
+	// direct access to the underlying vector
+	std::vector<value_type>& data() noexcept {
+		return _values;
+	}
+	const std::vector<value_type>& data() const noexcept {
+		return _values;
+	}
 
 	// access specified element with bounds checking
 	mapped_type& at(key_type k) {
