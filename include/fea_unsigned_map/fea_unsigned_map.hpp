@@ -381,7 +381,7 @@ struct unsigned_map {
 				static_cast<const unsigned_map*>(this)->at(k));
 	}
 	const mapped_type& at_unchecked(key_type k) const {
-		return _values[_value_indexes[size_t(k)]];
+		return _values[_value_indexes[size_t(k)]].second;
 	}
 
 	// access or insert specified element
