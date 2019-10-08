@@ -98,18 +98,21 @@ TEST(unsigned_map, basics) {
 	for (size_t i = 0; i < small_num; ++i) {
 		EXPECT_EQ(map1[i], test{ i });
 		EXPECT_EQ(map1.at(i), test{ i });
+		EXPECT_EQ(map1.at_unchecked(i), test{ i });
 		EXPECT_EQ(map1.find(i)->second, test{ i });
 		EXPECT_TRUE(map1.contains(i));
 		EXPECT_EQ(map1.count(i), 1);
 
 		EXPECT_EQ(map2[i], test{ i });
 		EXPECT_EQ(map2.at(i), test{ i });
+		EXPECT_EQ(map2.at_unchecked(i), test{ i });
 		EXPECT_EQ(map2.find(i)->second, test{ i });
 		EXPECT_TRUE(map2.contains(i));
 		EXPECT_EQ(map2.count(i), 1);
 
 		EXPECT_EQ(map3[i], test{ i });
 		EXPECT_EQ(map3.at(i), test{ i });
+		EXPECT_EQ(map3.at_unchecked(i), test{ i });
 		EXPECT_EQ(map3.find(i)->second, test{ i });
 		EXPECT_TRUE(map2.contains(i));
 		EXPECT_EQ(map2.count(i), 1);
@@ -188,11 +191,13 @@ TEST(unsigned_map, basics) {
 		EXPECT_FALSE(ret_pair2.second);
 		EXPECT_EQ(ret_pair2.first, ret_pair1.first);
 		EXPECT_EQ(map1.at(19), test{ 19 });
+		EXPECT_EQ(map1.at_unchecked(19), test{ 19 });
 
 		ret_pair2 = map1.insert_or_assign(19, test{ 42 });
 		EXPECT_FALSE(ret_pair2.second);
 		EXPECT_EQ(ret_pair2.first, ret_pair1.first);
 		EXPECT_EQ(map1.at(19), test{ 42 });
+		EXPECT_EQ(map1.at_unchecked(19), test{ 42 });
 		ret_pair2 = map1.insert_or_assign(19, test{ 19 });
 	}
 
@@ -235,6 +240,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_TRUE(map1.contains(1));
 	EXPECT_TRUE(map1.contains(2));
 	EXPECT_EQ(map1.at(0), test{ 0 });
+	EXPECT_EQ(map1.at_unchecked(0), test{ 0 });
 	EXPECT_EQ(map1[1], test{ 1 });
 	EXPECT_EQ(map1.find(2)->second, test{ 2 });
 
@@ -243,6 +249,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_TRUE(map2.contains(4));
 	EXPECT_TRUE(map2.contains(5));
 	EXPECT_EQ(map2.at(3), test{ 3 });
+	EXPECT_EQ(map2.at_unchecked(3), test{ 3 });
 	EXPECT_EQ(map2[4], test{ 4 });
 	EXPECT_EQ(map2.find(5)->second, test{ 5 });
 
@@ -250,7 +257,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_TRUE(map3.contains(6));
 	EXPECT_TRUE(map3.contains(7));
 	EXPECT_TRUE(map3.contains(8));
-	EXPECT_EQ(map3.at(6), test{ 6 });
+	EXPECT_EQ(map3.at_unchecked(6), test{ 6 });
 	EXPECT_EQ(map3[7], test{ 7 });
 	EXPECT_EQ(map3.find(8)->second, test{ 8 });
 
@@ -284,9 +291,11 @@ TEST(unsigned_map, basics) {
 	EXPECT_TRUE(map1.contains(5));
 
 	EXPECT_EQ(map1.at(0), test{ 0 });
+	EXPECT_EQ(map1.at_unchecked(0), test{ 0 });
 	EXPECT_EQ(map1[1], test{ 1 });
 	EXPECT_EQ(map1.find(2)->second, test{ 2 });
 	EXPECT_EQ(map1.at(3), test{ 3 });
+	EXPECT_EQ(map1.at_unchecked(3), test{ 3 });
 	EXPECT_EQ(map1[4], test{ 4 });
 	EXPECT_EQ(map1.find(5)->second, test{ 5 });
 

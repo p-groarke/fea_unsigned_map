@@ -375,6 +375,15 @@ struct unsigned_map {
 		return it->second;
 	}
 
+	// access specified element without any bounds checking
+	mapped_type& at_unchecked(key_type k) {
+		return const_cast<mapped_type&>(
+				static_cast<const unsigned_map*>(this)->at(k));
+	}
+	const mapped_type& at_unchecked(key_type k) const {
+		return _values[_value_indexes[size_t(k)]];
+	}
+
 	// access or insert specified element
 	mapped_type& operator[](key_type k) {
 		iterator it = find(k);
