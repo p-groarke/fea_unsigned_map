@@ -8,14 +8,6 @@ configuration:
   - Debug
   - Release
 clone_folder: c:\projects\fea_unsigned_map
-before_build:
-  - cmd: cd c:\projects\fea_unsigned_map
-  - cmd: mkdir build
-  - cmd: cd build
-  - cmd: cmake .. -A%PLATFORM% -DBUILD_TESTING=On
-build:
-  project: c:\projects\fea_unsigned_map\build\fea_unsigned_map.sln
-  parallel: true
 install:
   - cmd: set PATH=%PATH%;%PYTHON%/Scripts/
   - cmd: pip.exe install conan
@@ -23,6 +15,31 @@ install:
   - cmd: conan user
   - cmd: conan --version
   - cmd: conan remote add bincrafters https://api.bintray.com/conan/conan/conan-center
+  - cmd: conan profile new default --detect
   - cmd: cd c:\projects\fea_unsigned_map
+build:
+  project: c:\projects\fea_unsigned_map\build\fea_unsigned_map.sln
+  parallel: false
 test_script:
   - cmd: c:\projects\fea_unsigned_map\build\bin\fea_unsigned_map_tests.exe
+for:
+  -
+    matrix:
+      only:
+        - platform: x64
+    before_build:
+      - cmd: conan profile update settings.arch="x86_64" default
+      - cmd: cd c:\projects\fea_unsigned_map
+      - cmd: mkdir build
+      - cmd: cd build
+      - cmd: cmake .. -A %PLATFORM% -DBUILD_TESTING=On
+  -
+    matrix:
+      only:
+        - platform: Win32
+    before_build:
+      - cmd: conan profile update settings.arch="x86" default
+      - cmd: cd c:\projects\fea_unsigned_map
+      - cmd: mkdir build
+      - cmd: cd build
+      - cmd: cmake .. -A %PLATFORM% -DBUILD_TESTING=On

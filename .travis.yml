@@ -6,15 +6,17 @@ before_install:
       brew upgrade cmake;
       brew install cmake python3;
     fi
+install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       pyenv global 3.7.1;
     fi
-install:
   - pip3 install conan
   - conan user
   - conan remote add bincrafters https://api.bintray.com/conan/conan/conan-center
   - conan profile new default --detect
-  - conan profile update settings.compiler.libcxx=libstdc++11 default
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      conan profile update settings.compiler.libcxx=libstdc++11 default;
+    fi
 
 matrix:
   include:
