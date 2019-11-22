@@ -70,19 +70,28 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME}" DESTINAT
 # External projects
 ##
 
+function(output_file REQUIRED_ARG)
+	file(READ ${REQUIRED_ARG} FILE)
+	message("\n${REQUIRED_ARG} :\n${FILE}\n")
+endfunction()
 
 # Tests
-option(BUILD_TESTING "Build and run tests." Off)
+option(BUILD_TESTING "Build and run tests." On)
 if (${BUILD_TESTING})
 	enable_testing()
 	
 	include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
 	conan_basic_setup(TARGETS)
-	
+
+	output_file(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
+	output_file(${CMAKE_BINARY_DIR}/conanbuildinfo_release.cmake)
+	output_file(${CMAKE_BINARY_DIR}/conanbuildinfo_debug.cmake)
+
 	set(TEST_NAME ${PROJECT_NAME}_tests)
 	file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp" "tests/*.c" "tests/*.hpp" "tests/*.h" "tests/*.tpp")
 	add_executable(${TEST_NAME} ${TEST_SOURCES})
-	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} CONAN_PKG::gtest)
+	message("conan include dirs : ${CONAN_INCLUDE_DIRS}")
+	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} CONAN_PKG::GTest)
 	gtest_discover_tests(${TEST_NAME})
 	add_dependencies(${TEST_NAME} ${PROJECT_NAME})
 

@@ -28,19 +28,19 @@ TEST(unsigned_map, basics) {
 
 	fea::unsigned_map<size_t, test> map1{ small_num };
 	map1.reserve(100);
-	EXPECT_EQ(map1.capacity(), 100);
+	EXPECT_EQ(map1.capacity(), 100u);
 	map1.shrink_to_fit();
-	EXPECT_EQ(map1.capacity(), 0);
+	EXPECT_EQ(map1.capacity(), 0u);
 	EXPECT_TRUE(map1.empty());
-	EXPECT_EQ(map1.size(), 0);
+	EXPECT_EQ(map1.size(), 0u);
 	EXPECT_FALSE(map1.contains(1));
-	EXPECT_EQ(map1.count(1), 0);
+	EXPECT_EQ(map1.count(1), 0u);
 
 	map1.clear();
 	EXPECT_TRUE(map1.empty());
-	EXPECT_EQ(map1.size(), 0);
+	EXPECT_EQ(map1.size(), 0u);
 	EXPECT_FALSE(map1.contains(1));
-	EXPECT_EQ(map1.count(1), 0);
+	EXPECT_EQ(map1.count(1), 0u);
 
 	for (size_t i = 0; i < small_num; ++i) {
 		auto ret_pair = map1.insert({ i, { i } });
@@ -79,13 +79,13 @@ TEST(unsigned_map, basics) {
 
 	map1.clear();
 	EXPECT_TRUE(map1.empty());
-	EXPECT_EQ(map1.size(), 0);
+	EXPECT_EQ(map1.size(), 0u);
 
 	auto it = map1.find(1);
 	EXPECT_EQ(it, map1.end());
 	EXPECT_THROW(map1.at(1), std::out_of_range);
 	EXPECT_FALSE(map1.contains(1));
-	EXPECT_EQ(map1.count(1), 0);
+	EXPECT_EQ(map1.count(1), 0u);
 
 	EXPECT_EQ(map1[1], test{});
 
@@ -101,21 +101,21 @@ TEST(unsigned_map, basics) {
 		EXPECT_EQ(map1.at_unchecked(i), test{ i });
 		EXPECT_EQ(map1.find(i)->second, test{ i });
 		EXPECT_TRUE(map1.contains(i));
-		EXPECT_EQ(map1.count(i), 1);
+		EXPECT_EQ(map1.count(i), 1u);
 
 		EXPECT_EQ(map2[i], test{ i });
 		EXPECT_EQ(map2.at(i), test{ i });
 		EXPECT_EQ(map2.at_unchecked(i), test{ i });
 		EXPECT_EQ(map2.find(i)->second, test{ i });
 		EXPECT_TRUE(map2.contains(i));
-		EXPECT_EQ(map2.count(i), 1);
+		EXPECT_EQ(map2.count(i), 1u);
 
 		EXPECT_EQ(map3[i], test{ i });
 		EXPECT_EQ(map3.at(i), test{ i });
 		EXPECT_EQ(map3.at_unchecked(i), test{ i });
 		EXPECT_EQ(map3.find(i)->second, test{ i });
 		EXPECT_TRUE(map2.contains(i));
-		EXPECT_EQ(map2.count(i), 1);
+		EXPECT_EQ(map2.count(i), 1u);
 	}
 
 	map1.erase(1);
@@ -123,24 +123,24 @@ TEST(unsigned_map, basics) {
 	EXPECT_NE(map1, map2);
 	EXPECT_NE(map1, map3);
 	EXPECT_FALSE(map1.contains(1));
-	EXPECT_EQ(map1.count(1), 0);
+	EXPECT_EQ(map1.count(1), 0u);
 
 	map1.insert({ 1, { 1 } });
 	EXPECT_EQ(map1.size(), small_num);
 	EXPECT_EQ(map1, map2);
 	EXPECT_EQ(map1, map3);
 	EXPECT_TRUE(map1.contains(1));
-	EXPECT_EQ(map1.count(1), 1);
+	EXPECT_EQ(map1.count(1), 1u);
 
 	map1.erase(map1.begin(), map1.end());
 	EXPECT_TRUE(map1.empty());
-	EXPECT_EQ(map1.size(), 0);
+	EXPECT_EQ(map1.size(), 0u);
 
 	it = map1.find(1);
 	EXPECT_EQ(it, map1.end());
 	EXPECT_THROW(map1.at(1), std::out_of_range);
 	EXPECT_FALSE(map1.contains(1));
-	EXPECT_EQ(map1.count(1), 0);
+	EXPECT_EQ(map1.count(1), 0u);
 
 	map_ded = map2;
 	map1 = std::move(map_ded);
@@ -150,7 +150,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_NE(map1, map2);
 	EXPECT_NE(map1, map3);
 	EXPECT_FALSE(map1.contains(0));
-	EXPECT_EQ(map1.count(0), 0);
+	EXPECT_EQ(map1.count(0), 0u);
 	EXPECT_THROW(map1.at(0), std::out_of_range);
 
 	map1 = map2;
@@ -164,7 +164,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_EQ(map1.size(), small_num / 2);
 
 	for (auto t : map1) {
-		EXPECT_EQ(t.second.val % 2, 0);
+		EXPECT_EQ(t.second.val % 2, 0u);
 	}
 
 	map1 = map2;
@@ -175,7 +175,7 @@ TEST(unsigned_map, basics) {
 		else
 			++it;
 	}
-	EXPECT_EQ(map1.size(), 4);
+	EXPECT_EQ(map1.size(), 4u);
 	EXPECT_TRUE(map1.contains(0));
 	EXPECT_TRUE(map1.contains(1));
 	EXPECT_TRUE(map1.contains(9));
@@ -235,7 +235,7 @@ TEST(unsigned_map, basics) {
 	map3 = fea::unsigned_map<size_t, test>(
 			{ { 6, { 6 } }, { 7, { 7 } }, { 8, { 8 } } });
 
-	EXPECT_EQ(map1.size(), 3);
+	EXPECT_EQ(map1.size(), 3u);
 	EXPECT_TRUE(map1.contains(0));
 	EXPECT_TRUE(map1.contains(1));
 	EXPECT_TRUE(map1.contains(2));
@@ -244,7 +244,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_EQ(map1[1], test{ 1 });
 	EXPECT_EQ(map1.find(2)->second, test{ 2 });
 
-	EXPECT_EQ(map2.size(), 3);
+	EXPECT_EQ(map2.size(), 3u);
 	EXPECT_TRUE(map2.contains(3));
 	EXPECT_TRUE(map2.contains(4));
 	EXPECT_TRUE(map2.contains(5));
@@ -253,7 +253,7 @@ TEST(unsigned_map, basics) {
 	EXPECT_EQ(map2[4], test{ 4 });
 	EXPECT_EQ(map2.find(5)->second, test{ 5 });
 
-	EXPECT_EQ(map3.size(), 3);
+	EXPECT_EQ(map3.size(), 3u);
 	EXPECT_TRUE(map3.contains(6));
 	EXPECT_TRUE(map3.contains(7));
 	EXPECT_TRUE(map3.contains(8));
@@ -282,7 +282,7 @@ TEST(unsigned_map, basics) {
 
 	map1.insert({ { 3, { 3 } }, { 4, { 4 } }, { 5, { 5 } } });
 
-	EXPECT_EQ(map1.size(), 6);
+	EXPECT_EQ(map1.size(), 6u);
 	EXPECT_TRUE(map1.contains(0));
 	EXPECT_TRUE(map1.contains(1));
 	EXPECT_TRUE(map1.contains(2));

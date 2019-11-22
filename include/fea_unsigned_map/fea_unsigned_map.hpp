@@ -58,12 +58,12 @@ template <class Func, class Tuple>
 inline constexpr void apply(Func&& func, Tuple&& tup) {
 	apply_imp(std::forward<Func>(func), std::forward<Tuple>(tup),
 			std::make_index_sequence<std::tuple_size<
-					std::remove_reference<Tuple>::type>::value>{});
+					typename std::remove_reference<Tuple>::type>::value>{});
 }
 
 template <class T>
-inline constexpr std::conditional_t<
-		!std::is_move_constructible_v<T> && std::is_copy_constructible_v<T>,
+inline constexpr std::conditional_t<!std::is_move_constructible<T>::value
+				&& std::is_copy_constructible<T>::value,
 		const T&, T&&>
 maybe_move(T& arg) noexcept {
 	return std::move(arg);
@@ -84,7 +84,7 @@ struct unsigned_map {
 	using allocator_type = typename std::vector<value_type>::allocator_type;
 
 	using reference = value_type&;
-	using const_reference = const reference;
+	using const_reference = const value_type&;
 	using pointer = typename std::allocator_traits<allocator_type>::pointer;
 	using const_pointer =
 			typename std::allocator_traits<allocator_type>::const_pointer;
@@ -451,12 +451,12 @@ struct unsigned_map {
 	// Non-member functions
 
 	//	compares the values in the unordered_map
-	template <class Key, class T>
+	template <class K, class U>
 	friend bool operator==(
-			const unsigned_map<Key, T>& lhs, const unsigned_map<Key, T>& rhs);
-	template <class Key, class T>
+			const unsigned_map<K, U>& lhs, const unsigned_map<K, U>& rhs);
+	template <class K, class U>
 	friend bool operator!=(
-			const unsigned_map<Key, T>& lhs, const unsigned_map<Key, T>& rhs);
+			const unsigned_map<K, U>& lhs, const unsigned_map<K, U>& rhs);
 
 private:
 	constexpr size_type key_sentinel() const noexcept {

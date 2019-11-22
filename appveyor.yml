@@ -19,7 +19,7 @@ install:
   - cmd: cd c:\projects\fea_unsigned_map
 build:
   project: c:\projects\fea_unsigned_map\build\fea_unsigned_map.sln
-  parallel: false
+  parallel: true
 test_script:
   - cmd: c:\projects\fea_unsigned_map\build\bin\fea_unsigned_map_tests.exe
 for:
