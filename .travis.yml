@@ -7,34 +7,29 @@ before_install:
       brew install cmake python3;
     fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      eval "${MATRIX_EVAL}";
-      DEPS_DIR="${TRAVIS_BUILD_DIR}/deps";
-      mkdir ${DEPS_DIR} && cd ${DEPS_DIR};
-      CMAKE_URL="https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.tar.gz";
-      mkdir cmake && travis_retry wget --no-check-certificate --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C cmake;
-      export PATH=${DEPS_DIR}/cmake/bin:${PATH};
-      cd ..;
+      pyenv global 3.7.1;
     fi
-
 install:
-  - pip install --user conan
+  - pip3 install conan
   - conan user
-  - conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
+  - conan remote add bincrafters https://api.bintray.com/conan/conan/conan-center
+  - conan profile new default --detect
+  - conan profile update settings.compiler.libcxx=libstdc++11 default
 
 matrix:
   include:
     - os: osx
-      osx_image: xcode9.2
+      osx_image: xcode11.2
       env:
         - CONFIG=Release
 
     - os: osx
-      osx_image: xcode9.2
+      osx_image: xcode11.2
       env:
         - CONFIG=Debug
 
     - os: linux
-      dist: trusty
+      dist: bionic
       addons:
         apt:
           sources:
@@ -42,13 +37,11 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-            - python3
-            - python3-pip
       env:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7 && CONFIG=Debug"
 
     - os: linux
-      dist: trusty
+      dist: bionic
       addons:
         apt:
           sources:
@@ -56,13 +49,11 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-            - python3
-            - python3-pip
       env:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7 && CONFIG=Release"
 
     - os: linux
-      dist: trusty
+      dist: bionic
       addons:
         apt:
           sources:
@@ -70,13 +61,11 @@ matrix:
           packages:
             - gcc-8
             - g++-8
-            - python3
-            - python3-pip
       env:
         - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && CONFIG=Debug"
 
     - os: linux
-      dist: trusty
+      dist: bionic
       addons:
         apt:
           sources:
@@ -84,18 +73,14 @@ matrix:
           packages:
             - gcc-8
             - g++-8
-            - python3
-            - python3-pip
       env:
         - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && CONFIG=Release"
 
 script:
   - mkdir build && cd build
-  - conan install .. --build missing -s build_type=Debug
-  - conan install .. --build missing -s build_type=Release
   - cmake .. -DBUILD_TESTING=On
   - cmake --build .
-  - ./bin/string_algorithm_tests
+  - ./bin/fea_unsigned_map_tests
 
 notifications:
   email:

@@ -1,19 +1,20 @@
 image:
   - Visual Studio 2017
+  - Visual Studio 2019
 platform:
   - x64
+  - Win32
 configuration:
   - Debug
   - Release
-clone_folder: c:\projects\string_algorithm
+clone_folder: c:\projects\fea_unsigned_map
 before_build:
-  - cmd: cd c:\projects\string_algorithm
+  - cmd: cd c:\projects\fea_unsigned_map
   - cmd: mkdir build
   - cmd: cd build
-  - cmd: ..\conan.bat
-  - cmd: cmake .. -A x64 -DBUILD_TESTING=On
+  - cmd: cmake .. -A%PLATFORM% -DBUILD_TESTING=On
 build:
-  project: c:\projects\string_algorithm\build\string_algorithm.sln
+  project: c:\projects\fea_unsigned_map\build\fea_unsigned_map.sln
   parallel: true
 install:
   - cmd: set PATH=%PATH%;%PYTHON%/Scripts/
@@ -21,7 +22,7 @@ install:
   - cmd: cd ..
   - cmd: conan user
   - cmd: conan --version
-  - cmd: conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
-  - cmd: cd c:\projects\string_algorithm
+  - cmd: conan remote add bincrafters https://api.bintray.com/conan/conan/conan-center
+  - cmd: cd c:\projects\fea_unsigned_map
 test_script:
-  - cmd: c:\projects\string_algorithm\build\bin\string_algorithm_tests.exe
+  - cmd: c:\projects\fea_unsigned_map\build\bin\fea_unsigned_map_tests.exe
