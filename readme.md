@@ -1,4 +1,6 @@
 # fea_unsigned_map
+[![Build Status](https://travis-ci.org/p-groarke/fea_unsigned_map.svg?branch=master)](https://travis-ci.org/p-groarke/fea_unsigned_map)
+[![Build status](https://ci.appveyor.com/api/projects/status/3aljp09xanvka0qy/branch/master?svg=true)](https://ci.appveyor.com/project/p-groarke/fea-unsigned-map/branch/master)
 
 Simple `unordered_map` like container, optimized for unsigned keys that grow from 0 to N.
 
