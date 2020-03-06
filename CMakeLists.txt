@@ -42,7 +42,7 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 )
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-	target_compile_options(${PROJECT_NAME} INTERFACE -Wall -Wextra -Wpedantic -Werror)
+	target_compile_options(${PROJECT_NAME} INTERFACE -Wall -Wextra -Wpedantic -Werror -Wno-gnu-zero-variadic-macro-arguments)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 	target_compile_options(${PROJECT_NAME} INTERFACE -Wall -Wextra -Wpedantic -Werror)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")

@@ -1,5 +1,7 @@
-#include <fea_unsigned_map/fea_unsigned_map.hpp>
+﻿#include <fea_unsigned_map/fea_unsigned_map.hpp>
 #include <gtest/gtest.h>
+#include <memory>
+#include <unordered_map>
 
 namespace {
 struct test {
@@ -312,6 +314,23 @@ TEST(unsigned_map, basics) {
 }
 
 TEST(unsigned_map, random) {
+}
+
+TEST(unsigned_map, uniqueptr) {
+	fea::unsigned_map<size_t, std::unique_ptr<int>> map;
+
+	{
+		std::unique_ptr<int> test;
+		map[0] = std::move(test);
+	}
+	{
+		std::unique_ptr<int> test;
+		map.emplace(1, std::move(test));
+	}
+	{
+		std::unique_ptr<int> test;
+		map.insert({ 1, std::move(test) });
+	}
 }
 
 } // namespace

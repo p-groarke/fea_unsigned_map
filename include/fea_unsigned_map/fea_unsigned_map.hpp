@@ -1,4 +1,4 @@
-/*
+﻿/*
 BSD 3-Clause License
 
 Copyright (c) 2019, Philippe Groarke
@@ -234,8 +234,7 @@ struct unsigned_map {
 
 	// constructs element in-place
 	template <class... Args>
-	std::pair<iterator, bool> emplace(Args&&... args) {
-		Key k = std::get<0>(std::forward_as_tuple(args...));
+	std::pair<iterator, bool> emplace(key_type k, Args&&... args) {
 		iterator it = find(k);
 		if (it != end()) {
 			return { it, false };
@@ -244,7 +243,7 @@ struct unsigned_map {
 		resize_indexes_if_needed(k);
 
 		_value_indexes[size_t(k)] = _values.size();
-		_values.emplace_back(k, std::get<1>(std::forward_as_tuple(args...)));
+		_values.emplace_back(k, std::forward<Args>(args)...);
 
 		return { std::prev(_values.end()), true };
 	}
@@ -391,7 +390,7 @@ struct unsigned_map {
 			return it->second;
 		}
 
-		return insert({ k, {} }).first->second;
+		return emplace(k, mapped_type{}).first->second;
 	}
 
 	// returns the number of elements matching specific key (which is 1 or 0,
