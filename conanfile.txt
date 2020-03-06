@@ -2,7 +2,7 @@
 gtest/1.10.0@_/_
 
 [generators]
-cmake_multi
+cmake_find_package_multi
 
 [options]
 gtest:build_gmock=False
