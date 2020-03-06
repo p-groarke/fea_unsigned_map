@@ -10,6 +10,8 @@ include(GoogleTest)
 
 # Require up-to-date compiler.
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR} ${CMAKE_MODULE_PATH})
+set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR} ${CMAKE_PREFIX_PATH})
 
 # Output binary to predictable location (fixes cyclic dependency issues).
 set(BINARY_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -79,19 +81,15 @@ endfunction()
 option(BUILD_TESTING "Build and run tests." On)
 if (${BUILD_TESTING})
 	enable_testing()
-	
-	include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
-	conan_basic_setup(TARGETS)
-
-	output_file(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
-	output_file(${CMAKE_BINARY_DIR}/conanbuildinfo_release.cmake)
-	output_file(${CMAKE_BINARY_DIR}/conanbuildinfo_debug.cmake)
 
 	set(TEST_NAME ${PROJECT_NAME}_tests)
 	file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp" "tests/*.c" "tests/*.hpp" "tests/*.h" "tests/*.tpp")
 	add_executable(${TEST_NAME} ${TEST_SOURCES})
 	message("conan include dirs : ${CONAN_INCLUDE_DIRS}")
-	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} CONAN_PKG::GTest)
+
+	find_package(GTest CONFIG REQUIRED)
+	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} GTest::GTest)
+	
 	gtest_discover_tests(${TEST_NAME})
 	add_dependencies(${TEST_NAME} ${PROJECT_NAME})
 
