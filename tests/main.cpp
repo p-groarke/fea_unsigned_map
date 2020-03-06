@@ -320,17 +320,34 @@ TEST(unsigned_map, uniqueptr) {
 	fea::unsigned_map<size_t, std::unique_ptr<int>> map;
 
 	{
-		std::unique_ptr<int> test;
+		std::unique_ptr<int> test = std::make_unique<int>(0);
 		map[0] = std::move(test);
 	}
 	{
-		std::unique_ptr<int> test;
+		std::unique_ptr<int> test = std::make_unique<int>(1);
 		map.emplace(1, std::move(test));
 	}
 	{
-		std::unique_ptr<int> test;
-		map.insert({ 1, std::move(test) });
+		std::unique_ptr<int> test = std::make_unique<int>(2);
+		map.insert({ 2, std::move(test) });
 	}
+
+	for (size_t i = 3; i < 10; ++i) {
+		map.emplace(i, std::make_unique<int>(int(i)));
+	}
+
+	EXPECT_EQ(map.size(), 10);
+	for (size_t i = 0; i < 10; ++i) {
+		EXPECT_EQ(*map.at(i), i);
+	}
+
+	EXPECT_TRUE(map.contains(5));
+	EXPECT_EQ(map.count(5), 1u);
+	map.erase(5);
+	EXPECT_FALSE(map.contains(5));
+	EXPECT_EQ(map.count(5), 0u);
+	map.clear();
+	EXPECT_EQ(map.size(), 0);
 }
 
 } // namespace
