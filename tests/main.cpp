@@ -317,26 +317,26 @@ TEST(unsigned_map, random) {
 }
 
 TEST(unsigned_map, uniqueptr) {
-	fea::unsigned_map<size_t, std::unique_ptr<int>> map;
+	fea::unsigned_map<size_t, std::unique_ptr<unsigned>> map;
 
 	{
-		std::unique_ptr<int> test = std::make_unique<int>(0);
+		std::unique_ptr<unsigned> test = std::make_unique<unsigned>(0);
 		map[0] = std::move(test);
 	}
 	{
-		std::unique_ptr<int> test = std::make_unique<int>(1);
+		std::unique_ptr<unsigned> test = std::make_unique<unsigned>(1);
 		map.emplace(1, std::move(test));
 	}
 	{
-		std::unique_ptr<int> test = std::make_unique<int>(2);
+		std::unique_ptr<unsigned> test = std::make_unique<unsigned>(2);
 		map.insert({ 2, std::move(test) });
 	}
 
 	for (size_t i = 3; i < 10; ++i) {
-		map.emplace(i, std::make_unique<int>(int(i)));
+		map.emplace(i, std::make_unique<unsigned>(unsigned(i)));
 	}
 
-	EXPECT_EQ(map.size(), 10);
+	EXPECT_EQ(map.size(), 10u);
 	for (size_t i = 0; i < 10; ++i) {
 		EXPECT_EQ(*map.at(i), i);
 	}
@@ -347,7 +347,7 @@ TEST(unsigned_map, uniqueptr) {
 	EXPECT_FALSE(map.contains(5));
 	EXPECT_EQ(map.count(5), 0u);
 	map.clear();
-	EXPECT_EQ(map.size(), 0);
+	EXPECT_EQ(map.size(), 0u);
 }
 
 } // namespace
