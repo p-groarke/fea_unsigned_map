@@ -1,17 +1,21 @@
+﻿#if defined(NDEBUG)
+
 #include <algorithm>
 #include <array>
 #include <bench_util/bench_util.h>
 #include <cstdio>
 #include <fea_unsigned_map/fea_unsigned_map.hpp>
+#include <gtest/gtest.h>
 #include <map>
 #include <random>
 #include <string>
 #include <unordered_map>
 
+namespace {
 #if defined(NDEBUG)
 constexpr size_t num_keys = 10'000'000;
 #else
-constexpr size_t num_keys = 1'000'000;
+constexpr size_t num_keys = 100'000;
 #endif
 
 struct small_obj {
@@ -441,7 +445,7 @@ void benchmarks(const std::vector<size_t>& keys) {
 }
 
 
-int main(int, char**) {
+TEST(unsigned_map, benchmarks) {
 	srand(static_cast<unsigned int>(
 			std::chrono::system_clock::now().time_since_epoch().count()));
 	std::vector<size_t> keys;
@@ -523,7 +527,6 @@ int main(int, char**) {
 
 		benchmarks(keys);
 	}
-
-
-	return 0;
 }
+} // namespace
+#endif // NDEBUG
