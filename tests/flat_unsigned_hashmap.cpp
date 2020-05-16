@@ -1,4 +1,4 @@
-﻿#include <fea_unsigned_map/fea_compact_unsigned_map.hpp>
+﻿#include <fea_unsigned_map/fea_flat_unsigned_hashmap.hpp>
 #include <gtest/gtest.h>
 #include <memory>
 #include <unordered_map>
@@ -25,10 +25,10 @@ bool operator!=(const test2& lhs, const test2& rhs) {
 	return !operator==(lhs, rhs);
 }
 
-TEST(compact_unsigned_map, basics) {
+TEST(flat_unsigned_hashmap, basics) {
 	constexpr size_t small_num = 10;
 
-	fea::compact_unsigned_map<size_t, test2> map1{ small_num };
+	fea::flat_unsigned_hashmap<size_t, test2> map1{ small_num };
 	map1.reserve(100);
 	EXPECT_EQ(map1.capacity(), 100u);
 	map1.shrink_to_fit();
@@ -61,9 +61,9 @@ TEST(compact_unsigned_map, basics) {
 		EXPECT_EQ(*ret_pair.first, t);
 	}
 
-	fea::compact_unsigned_map<size_t, test2> map2{ map1 };
-	fea::compact_unsigned_map<size_t, test2> map_ded{ map1 };
-	fea::compact_unsigned_map<size_t, test2> map3{ std::move(map_ded) };
+	fea::flat_unsigned_hashmap<size_t, test2> map2{ map1 };
+	fea::flat_unsigned_hashmap<size_t, test2> map_ded{ map1 };
+	fea::flat_unsigned_hashmap<size_t, test2> map3{ std::move(map_ded) };
 
 	EXPECT_EQ(map1, map2);
 	EXPECT_EQ(map1, map3);
@@ -223,11 +223,11 @@ TEST(compact_unsigned_map, basics) {
 	map1 = map2;
 	map3 = map2;
 
-	map1 = fea::compact_unsigned_map<size_t, test2>(
+	map1 = fea::flat_unsigned_hashmap<size_t, test2>(
 			{ { 0, { 0 } }, { 1, { 1 } }, { 2, { 2 } } });
-	map2 = fea::compact_unsigned_map<size_t, test2>(
+	map2 = fea::flat_unsigned_hashmap<size_t, test2>(
 			{ { 3, { 3 } }, { 4, { 4 } }, { 5, { 5 } } });
-	map3 = fea::compact_unsigned_map<size_t, test2>(
+	map3 = fea::flat_unsigned_hashmap<size_t, test2>(
 			{ { 6, { 6 } }, { 7, { 7 } }, { 8, { 8 } } });
 
 	EXPECT_EQ(map1.size(), 3u);
@@ -256,9 +256,9 @@ TEST(compact_unsigned_map, basics) {
 	EXPECT_EQ(*map3.find(8), test2{ 8 });
 
 	{
-		fea::compact_unsigned_map<size_t, test2> map1_back = map1;
-		fea::compact_unsigned_map<size_t, test2> map2_back{ map2 };
-		fea::compact_unsigned_map<size_t, test2> map3_back{ map3 };
+		fea::flat_unsigned_hashmap<size_t, test2> map1_back = map1;
+		fea::flat_unsigned_hashmap<size_t, test2> map2_back{ map2 };
+		fea::flat_unsigned_hashmap<size_t, test2> map3_back{ map3 };
 
 		map1.swap(map2);
 		EXPECT_EQ(map1, map2_back);
@@ -293,7 +293,7 @@ TEST(compact_unsigned_map, basics) {
 	EXPECT_EQ(map1[4], test2{ 4 });
 	EXPECT_EQ(*map1.find(5), test2{ 5 });
 
-	// map2 = fea::compact_unsigned_map<size_t, test2>(map1.begin(),
+	// map2 = fea::flat_unsigned_hashmap<size_t, test2>(map1.begin(),
 	// map1.end()); EXPECT_EQ(map1.size(), map2.size()); EXPECT_EQ(map1, map2);
 
 	// map3.clear();
@@ -304,8 +304,8 @@ TEST(compact_unsigned_map, basics) {
 	// EXPECT_EQ(map2, map3);
 }
 
-TEST(compact_unsigned_map, uniqueptr) {
-	fea::compact_unsigned_map<size_t, std::unique_ptr<unsigned>> map;
+TEST(flat_unsigned_hashmap, uniqueptr) {
+	fea::flat_unsigned_hashmap<size_t, std::unique_ptr<unsigned>> map;
 
 	{
 		std::unique_ptr<unsigned> test = std::make_unique<unsigned>(0);

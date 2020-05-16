@@ -77,6 +77,7 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME}" DESTINAT
 
 # Tests
 option(FEA_UNSIGNED_MAP_TESTS "Build and run tests." On)
+option(FEA_UNSIGNED_MAP_BENCHMARKS "Build and run bencharks, requires tests." Off)
 if (${FEA_UNSIGNED_MAP_TESTS})
 	enable_testing()
 	
@@ -95,6 +96,10 @@ if (${FEA_UNSIGNED_MAP_TESTS})
 	file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp" "tests/*.c" "tests/*.hpp" "tests/*.h" "tests/*.tpp")
 	add_executable(${TEST_NAME} ${TEST_SOURCES})
 	set_compile_options(${TEST_NAME} PRIVATE)
+	
+	if (${FEA_UNSIGNED_MAP_BENCHMARKS})
+		target_compile_definitions(${TEST_NAME} PRIVATE FEA_BENCHMARKS)
+	endif()
 
 	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} GTest::GTest bench_util)
 	

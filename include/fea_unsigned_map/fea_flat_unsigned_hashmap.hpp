@@ -161,7 +161,7 @@ T next_prime(T a) {
 
 
 template <class Key, class T>
-struct compact_unsigned_map {
+struct flat_unsigned_hashmap {
 	static_assert(std::is_unsigned<Key>::value,
 			"unsigned_map : key must be unsigned integer");
 
@@ -193,26 +193,26 @@ struct compact_unsigned_map {
 
 	// Constructors, destructors and assignement
 
-	compact_unsigned_map()
+	flat_unsigned_hashmap()
 			: _lookup(std::vector<std::pair<key_type, size_type>>(
 					init_count(), { {}, detail::size_sentinel() })) {
 		// Starts with 7 elements to optimize some calls.
-		// Of course, uses prime modulo sizes.
+		// Uses prime modulo sizes.
 	}
-	compact_unsigned_map(const compact_unsigned_map&) = default;
-	compact_unsigned_map(compact_unsigned_map&&) = default;
-	compact_unsigned_map& operator=(const compact_unsigned_map&) = default;
-	compact_unsigned_map& operator=(compact_unsigned_map&&) = default;
+	flat_unsigned_hashmap(const flat_unsigned_hashmap&) = default;
+	flat_unsigned_hashmap(flat_unsigned_hashmap&&) = default;
+	flat_unsigned_hashmap& operator=(const flat_unsigned_hashmap&) = default;
+	flat_unsigned_hashmap& operator=(flat_unsigned_hashmap&&) = default;
 
-	explicit compact_unsigned_map(size_t reserve_count)
-			: compact_unsigned_map() {
+	explicit flat_unsigned_hashmap(size_t reserve_count)
+			: flat_unsigned_hashmap() {
 		_lookup.reserve(reserve_count);
 		_reverse_lookup.reserve(reserve_count);
 		_values.reserve(reserve_count);
 	}
-	explicit compact_unsigned_map(
+	explicit flat_unsigned_hashmap(
 			size_t key_reserve_count, size_t value_reserve_count)
-			: compact_unsigned_map() {
+			: flat_unsigned_hashmap() {
 		_lookup.reserve(key_reserve_count);
 		_reverse_lookup.reserve(value_reserve_count);
 		_values.reserve(value_reserve_count);
@@ -220,17 +220,17 @@ struct compact_unsigned_map {
 
 	// todo : kv iterators
 	// template <class InputIt>
-	// compact_unsigned_map(InputIt first, InputIt last)
-	//		: compact_unsigned_map() {
+	// flat_unsigned_hashmap(InputIt first, InputIt last)
+	//		: flat_unsigned_hashmap() {
 	//	// TODO : benchmark and potentially optimize
 	//	for (auto it = first; it != last; ++it) {
 	//		insert(*it);
 	//	}
 	//}
 
-	explicit compact_unsigned_map(
+	explicit flat_unsigned_hashmap(
 			std::initializer_list<std::pair<key_type, value_type>> init)
-			: compact_unsigned_map() {
+			: flat_unsigned_hashmap() {
 		// TODO : benchmark and potentially optimize
 		for (const std::pair<key_type, value_type>& kv : init) {
 			insert(kv.first, kv.second);
@@ -277,8 +277,7 @@ struct compact_unsigned_map {
 
 	// returns the maximum possible number of elements
 	size_type max_size() const noexcept {
-		// -1 due to sentinel
-		return _lookup.max_size() - 1;
+		return _lookup.max_size();
 	}
 
 	// reserves storage
@@ -444,7 +443,7 @@ struct compact_unsigned_map {
 	}
 
 	// swaps the contents
-	void swap(compact_unsigned_map& other) noexcept {
+	void swap(flat_unsigned_hashmap& other) noexcept {
 		_lookup.swap(other._lookup);
 		_reverse_lookup.swap(other._reverse_lookup);
 		_values.swap(other._values);
@@ -471,7 +470,7 @@ struct compact_unsigned_map {
 	}
 	mapped_type& at(key_type k) {
 		return const_cast<mapped_type&>(
-				static_cast<const compact_unsigned_map*>(this)->at(k));
+				static_cast<const flat_unsigned_hashmap*>(this)->at(k));
 	}
 
 	// access specified element without any bounds checking
@@ -481,7 +480,8 @@ struct compact_unsigned_map {
 	}
 	mapped_type& at_unchecked(key_type k) {
 		return const_cast<mapped_type&>(
-				static_cast<const compact_unsigned_map*>(this)->at(k));
+				static_cast<const flat_unsigned_hashmap*>(this)->at_unchecked(
+						k));
 	}
 
 	// access or insert specified element
@@ -580,7 +580,7 @@ struct compact_unsigned_map {
 						});
 
 				// Something is really screwed up.
-				assert(it != _lookup.end());
+				assert(it != new_lookup.end());
 			}
 
 			// creates new lookup, assigns the existing element pos
@@ -595,14 +595,14 @@ struct compact_unsigned_map {
 
 	//	compares the values in the unordered_map
 	template <class K, class U>
-	friend bool operator==(const compact_unsigned_map<K, U>& lhs,
-			const compact_unsigned_map<K, U>& rhs);
+	friend bool operator==(const flat_unsigned_hashmap<K, U>& lhs,
+			const flat_unsigned_hashmap<K, U>& rhs);
 	template <class K, class U>
-	friend bool operator!=(const compact_unsigned_map<K, U>& lhs,
-			const compact_unsigned_map<K, U>& rhs);
+	friend bool operator!=(const flat_unsigned_hashmap<K, U>& lhs,
+			const flat_unsigned_hashmap<K, U>& rhs);
 
 private:
-	constexpr size_type init_count() const noexcept {
+	static constexpr size_type init_count() {
 		return 7;
 	}
 
@@ -695,8 +695,8 @@ private:
 };
 
 template <class Key, class T>
-inline bool operator==(const compact_unsigned_map<Key, T>& lhs,
-		const compact_unsigned_map<Key, T>& rhs) {
+inline bool operator==(const flat_unsigned_hashmap<Key, T>& lhs,
+		const flat_unsigned_hashmap<Key, T>& rhs) {
 	if (lhs.size() != rhs.size())
 		return false;
 
@@ -715,8 +715,8 @@ inline bool operator==(const compact_unsigned_map<Key, T>& lhs,
 	return true;
 }
 template <class Key, class T>
-inline bool operator!=(const compact_unsigned_map<Key, T>& lhs,
-		const compact_unsigned_map<Key, T>& rhs) {
+inline bool operator!=(const flat_unsigned_hashmap<Key, T>& lhs,
+		const flat_unsigned_hashmap<Key, T>& rhs) {
 	return !operator==(lhs, rhs);
 }
 } // namespace fea
