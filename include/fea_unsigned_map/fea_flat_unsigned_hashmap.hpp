@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cassert>
 #include <numeric>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -58,12 +59,8 @@ template <class T>
 inline constexpr std::conditional_t<!std::is_move_constructible<T>::value
 				&& std::is_copy_constructible<T>::value,
 		const T&, T&&>
-compact_maybe_move(T& arg) noexcept {
+flathashmap_maybe_move(T& arg) noexcept {
 	return std::move(arg);
-}
-
-constexpr size_t size_sentinel() noexcept {
-	return (std::numeric_limits<size_t>::max)();
 }
 
 // https://stackoverflow.com/questions/30052316/find-next-prime-number-algorithm
@@ -195,7 +192,7 @@ struct flat_unsigned_hashmap {
 
 	flat_unsigned_hashmap()
 			: _lookup(std::vector<std::pair<key_type, size_type>>(
-					init_count(), { {}, detail::size_sentinel() })) {
+					init_count(), { {}, size_sentinel() })) {
 		// Starts with 7 elements to optimize some calls.
 		// Uses prime modulo sizes.
 	}
@@ -306,7 +303,7 @@ struct flat_unsigned_hashmap {
 	// clears the contents
 	void clear() noexcept {
 		_lookup = std::vector<std::pair<key_type, size_type>>(
-				init_count(), { {}, detail::size_sentinel() });
+				init_count(), { {}, size_sentinel() });
 		_reverse_lookup.clear();
 		_values.clear();
 	}
@@ -316,7 +313,7 @@ struct flat_unsigned_hashmap {
 		return minsert(key, value);
 	}
 	std::pair<iterator, bool> insert(key_type key, value_type&& value) {
-		return minsert(key, detail::compact_maybe_move(value));
+		return minsert(key, detail::flathashmap_maybe_move(value));
 	}
 
 	// todo : pair iterators
@@ -342,7 +339,7 @@ struct flat_unsigned_hashmap {
 	}
 	std::pair<iterator, bool> insert_or_assign(
 			key_type key, value_type&& value) {
-		return minsert(key, detail::compact_maybe_move(value), true);
+		return minsert(key, detail::flathashmap_maybe_move(value), true);
 	}
 
 	// constructs element in-place
@@ -362,7 +359,7 @@ struct flat_unsigned_hashmap {
 		}
 
 		auto lookup_it = find_first_slot(key);
-		if (lookup_it->second != detail::size_sentinel()) {
+		if (lookup_it->second != size_sentinel()) {
 			// Found valid key.
 			return { _values.begin() + lookup_it->second, false };
 		}
@@ -403,14 +400,14 @@ struct flat_unsigned_hashmap {
 	size_type erase(key_type k) {
 		auto lookup_it = find_first_slot(k);
 
-		if (lookup_it->second == detail::size_sentinel()) {
+		if (lookup_it->second == size_sentinel()) {
 			return 0;
 		}
 
 		if (lookup_it->second == _values.size() - 1) {
 			// No need for swap, object is already at end.
 			lookup_it->first = {};
-			lookup_it->second = detail::size_sentinel();
+			lookup_it->second = size_sentinel();
 			_reverse_lookup.pop_back();
 			_values.pop_back();
 			assert(_values.size() == _reverse_lookup.size());
@@ -427,11 +424,11 @@ struct flat_unsigned_hashmap {
 
 		// invalidate erased lookup
 		lookup_it->first = {};
-		lookup_it->second = detail::size_sentinel();
+		lookup_it->second = size_sentinel();
 
 		// "swap" the elements
 		_values[last_lookup_it->second]
-				= detail::compact_maybe_move(_values.back());
+				= detail::flathashmap_maybe_move(_values.back());
 		_reverse_lookup[last_lookup_it->second] = last_key;
 
 		// delete last
@@ -506,7 +503,7 @@ struct flat_unsigned_hashmap {
 	// finds element with specific key
 	const_iterator find(key_type k) const {
 		auto lookup_it = find_first_slot(k);
-		if (lookup_it->second == detail::size_sentinel()) {
+		if (lookup_it->second == size_sentinel()) {
 			return end();
 		}
 
@@ -518,7 +515,7 @@ struct flat_unsigned_hashmap {
 	}
 	iterator find(key_type k) {
 		auto lookup_it = find_first_slot(k);
-		if (lookup_it->second == detail::size_sentinel()) {
+		if (lookup_it->second == size_sentinel()) {
 			return end();
 		}
 
@@ -554,10 +551,10 @@ struct flat_unsigned_hashmap {
 		assert(detail::is_prime(count));
 
 		std::vector<std::pair<key_type, size_type>> new_lookup(
-				count, { {}, detail::size_sentinel() });
+				count, { {}, size_sentinel() });
 
 		for (const std::pair<key_type, size_type>& ks : _lookup) {
-			if (ks.second == detail::size_sentinel()) {
+			if (ks.second == size_sentinel()) {
 				continue;
 			}
 
@@ -568,7 +565,7 @@ struct flat_unsigned_hashmap {
 			auto it = std::find_if(new_lookup.begin() + bucket_pos,
 					new_lookup.end(),
 					[](const std::pair<key_type, size_type>& search) {
-						return search.second == detail::size_sentinel();
+						return search.second == size_sentinel();
 					});
 
 			// No free slot after bucket_pos, find one from beginning.
@@ -576,7 +573,7 @@ struct flat_unsigned_hashmap {
 				it = std::find_if(new_lookup.begin(),
 						new_lookup.begin() + bucket_pos,
 						[&](const std::pair<key_type, size_type>& search) {
-							return search.second == detail::size_sentinel();
+							return search.second == size_sentinel();
 						});
 
 				// Something is really screwed up.
@@ -602,7 +599,11 @@ struct flat_unsigned_hashmap {
 			const flat_unsigned_hashmap<K, U>& rhs);
 
 private:
-	static constexpr size_type init_count() {
+	static constexpr size_type size_sentinel() noexcept {
+		return (std::numeric_limits<size_type>::max)();
+	}
+
+	static constexpr size_type init_count() noexcept {
 		return 7;
 	}
 
@@ -611,14 +612,14 @@ private:
 		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
 				[&](const std::pair<key_type, size_type>& search) {
 					return search.first == key
-							|| search.second == detail::size_sentinel();
+							|| search.second == size_sentinel();
 				});
 		// No free slot after search_pos, find one from beginning.
 		if (it == _lookup.end()) {
 			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
 					[&](const std::pair<key_type, size_type>& search) {
 						return search.first == key
-								|| search.second == detail::size_sentinel();
+								|| search.second == size_sentinel();
 					});
 
 			// Something is really screwed up.
@@ -631,7 +632,7 @@ private:
 		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
 				[&](const std::pair<key_type, size_type>& search) {
 					return search.first == key
-							|| search.second == detail::size_sentinel();
+							|| search.second == size_sentinel();
 				});
 
 		// No free slot after search_pos, find one from beginning.
@@ -639,7 +640,7 @@ private:
 			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
 					[&](const std::pair<key_type, size_type>& search) {
 						return search.first == key
-								|| search.second == detail::size_sentinel();
+								|| search.second == size_sentinel();
 					});
 
 			// Something is really screwed up.
@@ -662,7 +663,7 @@ private:
 		}
 
 		auto lookup_it = find_first_slot(key);
-		if (lookup_it->second != detail::size_sentinel()) {
+		if (lookup_it->second != size_sentinel()) {
 			// Found valid key.
 
 			auto it = _values.begin() + lookup_it->second;
