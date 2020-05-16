@@ -1,17 +1,21 @@
+﻿#if defined(NDEBUG) && defined(FEA_BENCHMARKS)
+
 #include <algorithm>
 #include <array>
 #include <bench_util/bench_util.h>
 #include <cstdio>
 #include <fea_unsigned_map/fea_unsigned_map.hpp>
+#include <gtest/gtest.h>
 #include <map>
 #include <random>
 #include <string>
 #include <unordered_map>
 
+namespace {
 #if defined(NDEBUG)
-constexpr size_t num_keys = 10'000'000;
+constexpr size_t num_keys = 5'000'000;
 #else
-constexpr size_t num_keys = 1'000'000;
+constexpr size_t num_keys = 100'000;
 #endif
 
 struct small_obj {
@@ -234,7 +238,10 @@ void benchmarks(const std::vector<size_t>& keys) {
 	suite.title(title.data());
 
 	std::vector<size_t> random_keys = keys;
-	std::random_shuffle(random_keys.begin(), random_keys.end());
+
+	std::random_device rng;
+	std::mt19937_64 urng(rng());
+	std::shuffle(random_keys.begin(), random_keys.end(), urng);
 
 	suite.benchmark("std::map erase", [&]() {
 		for (size_t i = 0; i < random_keys.size(); ++i) {
@@ -441,7 +448,7 @@ void benchmarks(const std::vector<size_t>& keys) {
 }
 
 
-int main(int, char**) {
+TEST(unsigned_map, benchmarks) {
 	srand(static_cast<unsigned int>(
 			std::chrono::system_clock::now().time_since_epoch().count()));
 	std::vector<size_t> keys;
@@ -470,7 +477,7 @@ int main(int, char**) {
 	// Linear keys, N to 0
 	{
 		keys.clear();
-		for (long long i = long long(num_keys / 2 - 1); i >= 0; --i) {
+		for (long long i = (long long)(num_keys / 2 - 1); i >= 0; --i) {
 			keys.push_back(size_t(i));
 		}
 
@@ -523,7 +530,6 @@ int main(int, char**) {
 
 		benchmarks(keys);
 	}
-
-
-	return 0;
 }
+} // namespace
+#endif // NDEBUG

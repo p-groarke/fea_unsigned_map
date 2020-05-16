@@ -1,7 +1,7 @@
 ﻿/*
 BSD 3-Clause License
 
-Copyright (c) 2019, Philippe Groarke
+Copyright (c) 2020, Philippe Groarke
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -247,45 +247,14 @@ struct unsigned_map {
 
 		return { std::prev(_values.end()), true };
 	}
-	template <class... KeyArgs, class... ObjArgs>
-	std::pair<iterator, bool> emplace(std::piecewise_construct_t,
-			std::tuple<KeyArgs&&...> key_args,
-			std::tuple<ObjArgs&&...> obj_args) {
-
-		Key k;
-		detail::apply([&](auto&& key, auto&&...) { k = key; }, key_args);
-		iterator it = find(k);
-
-		if (it != end()) {
-			return { it, false };
-		}
-
-		resize_indexes_if_needed(k);
-
-		_value_indexes[size_t(k)] = _values.size();
-		detail::apply(
-				[this, k](auto&&... args) {
-					_values.emplace_back(
-							k, std::forward<decltype(args)>(args)...);
-				},
-				obj_args);
-
-		return { std::prev(_values.end()), true };
-	}
 
 	// inserts in-place if the key does not exist, does nothing if the key
 	// exists
 	template <class... Args>
-	std::pair<iterator, bool> try_emplace(Args&&... args) {
+	std::pair<iterator, bool> try_emplace(key_type key, Args&&... args) {
 		// Standard emplace behavior doesn't apply, always use try_emplace
 		// behavior.
-		return emplace(std::forward<Args>(args)...);
-	}
-	template <class... KeyArgs, class... ObjArgs>
-	std::pair<iterator, bool> try_emplace(std::piecewise_construct_t,
-			std::tuple<KeyArgs&&...> key_args,
-			std::tuple<ObjArgs&&...> obj_args) {
-		return emplace(std::piecewise_construct, key_args, obj_args);
+		return emplace(key, std::forward<Args>(args)...);
 	}
 
 	// erases elements
@@ -353,18 +322,14 @@ struct unsigned_map {
 
 	// Lookup
 	// direct access to the underlying vector
-	std::vector<value_type>& data() noexcept {
-		return _values;
+	const value_type* data() const noexcept {
+		return _values.data();
 	}
-	const std::vector<value_type>& data() const noexcept {
-		return _values;
+	value_type* data() noexcept {
+		return _values.data();
 	}
 
 	// access specified element with bounds checking
-	mapped_type& at(key_type k) {
-		return const_cast<mapped_type&>(
-				static_cast<const unsigned_map*>(this)->at(k));
-	}
 	const mapped_type& at(key_type k) const {
 		const_iterator it = find(k);
 		if (it == end()) {
@@ -373,14 +338,18 @@ struct unsigned_map {
 
 		return it->second;
 	}
-
-	// access specified element without any bounds checking
-	mapped_type& at_unchecked(key_type k) {
+	mapped_type& at(key_type k) {
 		return const_cast<mapped_type&>(
 				static_cast<const unsigned_map*>(this)->at(k));
 	}
+
+	// access specified element without any bounds checking
 	const mapped_type& at_unchecked(key_type k) const {
 		return _values[_value_indexes[size_t(k)]].second;
+	}
+	mapped_type& at_unchecked(key_type k) {
+		return const_cast<mapped_type&>(
+				static_cast<const unsigned_map*>(this)->at_unchecked(k));
 	}
 
 	// access or insert specified element
