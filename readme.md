@@ -27,15 +27,15 @@ Internal container and allocator are *not* customizable at this time.
 The `flat_unsigned_hashmap` is a more traditional hashing map, that has similar constraints as a slot map. Here, the lookup container will **not** grow as big as the biggest key. It is still much more performant than `unordered_map`, all the while offering a `data()` api which returns a pointer to the underlying values (hence flat).
 
 ### When To Use
-* Keys are guaranteed to be unique (perfect hashes).
+* Keys aren't guaranteed to be unique, though as with all hashmaps, performance will degrade if there are too many collisions.
 * You cannot guarantee key linearity (ex. pointers).
 * You need to iterate contained values often.
-* You must cross an ABI boundary, and wish to return a pointer to the data.
+* You must cross an ABI boundary, and wish to return a pointer to the data (or a `span`).
 
 ### Features
 * Has overall better performance than an equivalent `unordered_map`.
-* Doesn't use as much memory as a slot map, though uses more memory than `unordered_map`.
-* Data is stored contigously.
+* Doesn't use as much memory as `unsigned_map`, though it uses more memory than `unordered_map`.
+* Data is stored contiguously.
 * Access to underlying value buffer.
 
 ## Benchmarks
