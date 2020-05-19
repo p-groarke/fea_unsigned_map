@@ -90,6 +90,9 @@ bool is_prime(T number) {
 template <class T>
 T next_prime(T a) {
 	switch (a) {
+	case 6: {
+		return 7;
+	} break;
 	case 14: {
 		return 17;
 	} break;
@@ -165,7 +168,7 @@ struct flat_unsigned_hashmap {
 	using key_type = Key;
 	using mapped_type = T;
 	using value_type = mapped_type;
-	using size_type = std::size_t;
+	using size_type = Key; // No need to take up extra space
 	using difference_type = std::ptrdiff_t;
 
 	using allocator_type = typename std::vector<value_type>::allocator_type;
@@ -191,8 +194,7 @@ struct flat_unsigned_hashmap {
 	// Constructors, destructors and assignement
 
 	flat_unsigned_hashmap()
-			: _lookup(std::vector<std::pair<key_type, size_type>>(
-					init_count(), { {}, size_sentinel() })) {
+			: _lookup(init_count(), size_sentinel()) {
 		// Starts with 7 elements to optimize some calls.
 		// Uses prime modulo sizes.
 	}
@@ -274,7 +276,8 @@ struct flat_unsigned_hashmap {
 
 	// returns the maximum possible number of elements
 	size_type max_size() const noexcept {
-		return _lookup.max_size();
+		// -1 due to sentinel
+		return _lookup.max_size() - 1;
 	}
 
 	// reserves storage
@@ -302,8 +305,8 @@ struct flat_unsigned_hashmap {
 
 	// clears the contents
 	void clear() noexcept {
-		_lookup = std::vector<std::pair<key_type, size_type>>(
-				init_count(), { {}, size_sentinel() });
+		_lookup.clear();
+		_lookup.resize(init_count(), size_sentinel());
 		_reverse_lookup.clear();
 		_values.clear();
 	}
@@ -358,20 +361,16 @@ struct flat_unsigned_hashmap {
 			rehash(new_size);
 		}
 
-		auto lookup_it = find_first_slot(key);
-		if (lookup_it->second != size_sentinel()) {
+		size_type& value_idx = *find_first_slot(key, _lookup, _reverse_lookup);
+		if (value_idx != size_sentinel()) {
 			// Found valid key.
-			return { _values.begin() + lookup_it->second, false };
+			return { _values.begin() + value_idx, false };
 		}
-
-		// todo : manage end slot
-		assert(lookup_it != _lookup.end());
 
 		size_type new_pos = _values.size();
 		_values.emplace_back(std::forward<Args>(args)...);
 		_reverse_lookup.push_back(key);
-		lookup_it->first = key;
-		lookup_it->second = new_pos;
+		value_idx = new_pos;
 
 		assert(_reverse_lookup.size() == _values.size());
 		return { begin() + new_pos, true };
@@ -398,16 +397,15 @@ struct flat_unsigned_hashmap {
 		}
 	}
 	size_type erase(key_type k) {
-		auto lookup_it = find_first_slot(k);
+		size_type& value_idx = *find_first_slot(k, _lookup, _reverse_lookup);
 
-		if (lookup_it->second == size_sentinel()) {
+		if (value_idx == size_sentinel()) {
 			return 0;
 		}
 
-		if (lookup_it->second == _values.size() - 1) {
+		if (value_idx == _values.size() - 1) {
 			// No need for swap, object is already at end.
-			lookup_it->first = {};
-			lookup_it->second = size_sentinel();
+			value_idx = size_sentinel();
 			_reverse_lookup.pop_back();
 			_values.pop_back();
 			assert(_values.size() == _reverse_lookup.size());
@@ -417,19 +415,19 @@ struct flat_unsigned_hashmap {
 
 		// todo : Better way than doing a key search? could be slow
 		key_type last_key = _reverse_lookup.back();
-		auto last_lookup_it = find_first_slot(last_key);
+		size_type& last_value_idx
+				= *find_first_slot(last_key, _lookup, _reverse_lookup);
 
 		// set new pos on last element.
-		last_lookup_it->second = lookup_it->second;
+		last_value_idx = value_idx;
 
 		// invalidate erased lookup
-		lookup_it->first = {};
-		lookup_it->second = size_sentinel();
+		value_idx = size_sentinel();
 
 		// "swap" the elements
-		_values[last_lookup_it->second]
+		_values[last_value_idx]
 				= detail::flathashmap_maybe_move(_values.back());
-		_reverse_lookup[last_lookup_it->second] = last_key;
+		_reverse_lookup[last_value_idx] = last_key;
 
 		// delete last
 		_values.pop_back();
@@ -449,15 +447,15 @@ struct flat_unsigned_hashmap {
 
 	// Lookup
 	// direct access to the underlying vector
-	const value_type* data() const noexcept {
+	const_pointer data() const noexcept {
 		return _values.data();
 	}
-	value_type* data() noexcept {
+	pointer data() noexcept {
 		return _values.data();
 	}
 
 	// access specified element with bounds checking
-	const mapped_type& at(key_type k) const {
+	const_reference at(key_type k) const {
 		const_iterator it = find(k);
 		if (it == end()) {
 			throw std::out_of_range{ "unsigned_map : value doesn't exist" };
@@ -465,24 +463,24 @@ struct flat_unsigned_hashmap {
 
 		return *it;
 	}
-	mapped_type& at(key_type k) {
+	reference at(key_type k) {
 		return const_cast<mapped_type&>(
 				static_cast<const flat_unsigned_hashmap*>(this)->at(k));
 	}
 
 	// access specified element without any bounds checking
-	const mapped_type& at_unchecked(key_type k) const {
+	const_reference at_unchecked(key_type k) const {
 		const_iterator it = find(k);
 		return *it;
 	}
-	mapped_type& at_unchecked(key_type k) {
+	reference at_unchecked(key_type k) {
 		return const_cast<mapped_type&>(
 				static_cast<const flat_unsigned_hashmap*>(this)->at_unchecked(
 						k));
 	}
 
 	// access or insert specified element
-	mapped_type& operator[](key_type k) {
+	reference operator[](key_type k) {
 		iterator it = find(k);
 		if (it != end()) {
 			return *it;
@@ -502,28 +500,26 @@ struct flat_unsigned_hashmap {
 
 	// finds element with specific key
 	const_iterator find(key_type k) const {
-		auto lookup_it = find_first_slot(k);
-		if (lookup_it->second == size_sentinel()) {
+		size_type value_idx = *find_first_slot(k, _lookup, _reverse_lookup);
+		if (value_idx == size_sentinel()) {
 			return end();
 		}
 
-		assert(lookup_it->first == k);
-		assert(lookup_it->second < _values.size());
-		assert(lookup_it->second < _reverse_lookup.size());
+		assert(value_idx < _values.size());
+		assert(value_idx < _reverse_lookup.size());
 
-		return begin() + lookup_it->second;
+		return begin() + value_idx;
 	}
 	iterator find(key_type k) {
-		auto lookup_it = find_first_slot(k);
-		if (lookup_it->second == size_sentinel()) {
+		size_type value_idx = *find_first_slot(k, _lookup, _reverse_lookup);
+		if (value_idx == size_sentinel()) {
 			return end();
 		}
 
-		assert(lookup_it->first == k);
-		assert(lookup_it->second < _values.size());
-		assert(lookup_it->second < _reverse_lookup.size());
+		assert(value_idx < _values.size());
+		assert(value_idx < _reverse_lookup.size());
 
-		return begin() + lookup_it->second;
+		return begin() + value_idx;
 	}
 
 	// checks if the container contains element with specific key
@@ -550,39 +546,27 @@ struct flat_unsigned_hashmap {
 		count = detail::next_prime(count);
 		assert(detail::is_prime(count));
 
-		std::vector<std::pair<key_type, size_type>> new_lookup(
-				count, { {}, size_sentinel() });
+		std::vector<size_type> new_lookup(count, size_sentinel());
 
-		for (const std::pair<key_type, size_type>& ks : _lookup) {
-			if (ks.second == size_sentinel()) {
-				continue;
-			}
-
-			// new lookup position
-			size_type bucket_pos = size_type(ks.first) % count;
-
+		for (size_type i = 0; i < _reverse_lookup.size(); ++i) {
 			// find first free slot
-			auto it = std::find_if(new_lookup.begin() + bucket_pos,
-					new_lookup.end(),
-					[](const std::pair<key_type, size_type>& search) {
-						return search.second == size_sentinel();
-					});
+			// different than find_first_slot since it doesn't compare keys
+			size_type bucket_pos = _reverse_lookup[i] % count;
+
+			auto it = std::find(new_lookup.begin() + bucket_pos,
+					new_lookup.end(), size_sentinel());
 
 			// No free slot after bucket_pos, find one from beginning.
 			if (it == new_lookup.end()) {
-				it = std::find_if(new_lookup.begin(),
-						new_lookup.begin() + bucket_pos,
-						[&](const std::pair<key_type, size_type>& search) {
-							return search.second == size_sentinel();
-						});
+				it = std::find(new_lookup.begin(),
+						new_lookup.begin() + bucket_pos, size_sentinel());
 
 				// Something is really screwed up.
-				assert(it != new_lookup.end());
+				assert(it != new_lookup.begin() + bucket_pos);
 			}
 
 			// creates new lookup, assigns the existing element pos
-			it->first = ks.first;
-			it->second = ks.second;
+			*it = i;
 		}
 		_lookup = std::move(new_lookup);
 	}
@@ -604,47 +588,32 @@ private:
 	}
 
 	static constexpr size_type init_count() noexcept {
-		return 7;
+		return 3;
 	}
 
-	auto find_first_slot(key_type key) const {
-		size_type search_pos = key % _lookup.size();
-		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
-				[&](const std::pair<key_type, size_type>& search) {
-					return search.first == key
-							|| search.second == size_sentinel();
-				});
-		// No free slot after search_pos, find one from beginning.
-		if (it == _lookup.end()) {
-			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
-					[&](const std::pair<key_type, size_type>& search) {
-						return search.first == key
-								|| search.second == size_sentinel();
-					});
+	template <class LookupVec, class ReverseVec>
+	static auto find_first_slot(
+			key_type key, LookupVec& lookup_vec, ReverseVec& reverse_lookup) {
 
-			// Something is really screwed up.
-			assert(it != _lookup.end());
-		}
-		return it;
-	}
-	auto find_first_slot(key_type key) {
-		size_type search_pos = key % _lookup.size();
-		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
-				[&](const std::pair<key_type, size_type>& search) {
-					return search.first == key
-							|| search.second == size_sentinel();
+		size_type search_pos = key % lookup_vec.size();
+
+		// Find either the key idx it, or the first free slot.
+		auto it = std::find_if(lookup_vec.begin() + search_pos,
+				lookup_vec.end(), [&](size_type search) {
+					return search == size_sentinel()
+							|| reverse_lookup[search] == key;
 				});
 
 		// No free slot after search_pos, find one from beginning.
-		if (it == _lookup.end()) {
-			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
-					[&](const std::pair<key_type, size_type>& search) {
-						return search.first == key
-								|| search.second == size_sentinel();
+		if (it == lookup_vec.end()) {
+			it = std::find_if(lookup_vec.begin(),
+					lookup_vec.begin() + search_pos, [&](size_type search) {
+						return search == size_sentinel()
+								|| reverse_lookup[search] == key;
 					});
 
 			// Something is really screwed up.
-			assert(it != _lookup.begin() + search_pos);
+			assert(it != lookup_vec.begin() + search_pos);
 		}
 		return it;
 	}
@@ -662,25 +631,21 @@ private:
 			rehash(new_size);
 		}
 
-		auto lookup_it = find_first_slot(key);
-		if (lookup_it->second != size_sentinel()) {
+		size_type& value_idx = *find_first_slot(key, _lookup, _reverse_lookup);
+		if (value_idx != size_sentinel()) {
 			// Found valid key.
 
-			auto it = _values.begin() + lookup_it->second;
+			auto it = _values.begin() + value_idx;
 			if (assign_found) {
 				*it = std::forward<M>(value);
 			}
 			return { it, false };
 		}
 
-		// todo : manage end slot
-		assert(lookup_it != _lookup.end());
-
 		size_type new_pos = _values.size();
 		_values.push_back(std::forward<M>(value));
 		_reverse_lookup.push_back(key);
-		lookup_it->first = key;
-		lookup_it->second = new_pos;
+		value_idx = new_pos;
 
 		assert(_reverse_lookup.size() == _values.size());
 		return { begin() + new_pos, true };
@@ -690,8 +655,14 @@ private:
 	// max load is at 50% because we want many holes to minimize the insert N.
 	// todo : confirm with benchmarks
 	float _max_load_factor = 0.50f;
-	std::vector<std::pair<key_type, size_type>> _lookup;
-	std::vector<key_type> _reverse_lookup; // used in erase
+
+	// either the idx in the values & reverse_lookup, or sentinel.
+	std::vector<size_type> _lookup;
+
+	// used in erase & to find key from value idx
+	std::vector<key_type> _reverse_lookup;
+
+	// packed values
 	std::vector<value_type> _values;
 };
 

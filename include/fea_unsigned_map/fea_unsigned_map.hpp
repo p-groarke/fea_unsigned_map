@@ -47,20 +47,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace fea {
 namespace detail {
-
-// std::apply in c++17
-template <class Func, class Tuple, size_t... I>
-inline constexpr void apply_imp(
-		Func&& func, Tuple&& tup, std::index_sequence<I...>) {
-	std::forward<Func>(func)(std::get<I>(std::forward<Tuple>(tup))...);
-}
-template <class Func, class Tuple>
-inline constexpr void apply(Func&& func, Tuple&& tup) {
-	apply_imp(std::forward<Func>(func), std::forward<Tuple>(tup),
-			std::make_index_sequence<std::tuple_size<
-					typename std::remove_reference<Tuple>::type>::value>{});
-}
-
 template <class T>
 inline constexpr std::conditional_t<!std::is_move_constructible<T>::value
 				&& std::is_copy_constructible<T>::value,
@@ -78,7 +64,7 @@ struct unsigned_map {
 	using key_type = Key;
 	using mapped_type = T;
 	using value_type = std::pair<key_type, mapped_type>;
-	using size_type = std::size_t;
+	using size_type = Key;
 	using difference_type = std::ptrdiff_t;
 
 	using allocator_type = typename std::vector<value_type>::allocator_type;

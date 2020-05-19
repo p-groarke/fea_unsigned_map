@@ -337,4 +337,24 @@ TEST(flat_unsigned_hashmap, uniqueptr) {
 	map.clear();
 	EXPECT_EQ(map.size(), 0u);
 }
+
+TEST(flat_unsigned_hashmap, collisions) {
+	fea::flat_unsigned_hashmap<size_t, size_t> map;
+
+	constexpr size_t prime = 17;
+	size_t prime_i = prime;
+
+	for (size_t i = 0; i < prime; ++i) {
+		map.insert(prime_i, i);
+		prime_i *= 2;
+	}
+
+	prime_i = prime;
+	for (size_t i = 0; i < prime; ++i) {
+		EXPECT_TRUE(map.contains(prime_i));
+		EXPECT_EQ(map.at(prime_i), i);
+		prime_i *= 2;
+	}
+}
+
 } // namespace

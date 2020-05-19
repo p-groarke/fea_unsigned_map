@@ -53,7 +53,7 @@ void benchmarks(const std::vector<size_t>& keys) {
 	title.fill('\0');
 
 	bench::suite suite;
-	// suite.sleep_between(1s);
+	suite.sleep_between(1s);
 
 	// Containers
 	std::map<size_t, small_obj> map_small;
@@ -126,9 +126,9 @@ void benchmarks(const std::vector<size_t>& keys) {
 	suite.benchmark("std::unordered_map copy ctor", [&]() {
 		std::unordered_map<size_t, big_obj> cpy(unordered_map_big);
 	});
-	suite.benchmark("fea::flat_unsigned_hashmap copy ctor", [&]() {
-		fea::flat_unsigned_hashmap<size_t, big_obj> cpy(unsigned_map_big);
-	});
+	// suite.benchmark("fea::flat_unsigned_hashmap copy ctor", [&]() {
+	//	fea::flat_unsigned_hashmap<size_t, big_obj> cpy(unsigned_map_big);
+	//});
 	suite.print();
 	suite.clear();
 
