@@ -79,6 +79,7 @@ struct unsigned_map {
 	using mapped_type = T;
 	using value_type = std::pair<key_type, mapped_type>;
 	using size_type = std::size_t;
+	using pos_type = Key;
 	using difference_type = std::ptrdiff_t;
 
 	using allocator_type = typename std::vector<value_type>::allocator_type;
@@ -175,7 +176,7 @@ struct unsigned_map {
 	// returns the maximum possible number of elements
 	size_type max_size() const noexcept {
 		// -1 due to sentinel
-		return _value_indexes.max_size() - 1;
+		return pos_sentinel() - 1;
 	}
 
 	// reserves storage
@@ -242,7 +243,7 @@ struct unsigned_map {
 
 		resize_indexes_if_needed(k);
 
-		_value_indexes[size_t(k)] = _values.size();
+		_value_indexes[k] = pos_type(_values.size());
 		_values.emplace_back(k, std::forward<Args>(args)...);
 
 		return { std::prev(_values.end()), true };
@@ -294,7 +295,7 @@ struct unsigned_map {
 		}
 
 		iterator last_it = std::prev(end());
-		_value_indexes[size_t(k)] = key_sentinel();
+		_value_indexes[k] = pos_sentinel();
 
 		// No need for swap, object is already at end.
 		if (last_it == it) {
@@ -303,12 +304,12 @@ struct unsigned_map {
 		}
 
 		// swap & pop
-		size_t value_idx = std::distance(_values.begin(), it);
+		pos_type value_idx = std::distance(_values.begin(), it);
 		key_type last_key = _values.back().first;
 
 		*it = detail::maybe_move(_values.back());
 		_values.pop_back();
-		_value_indexes[size_t(last_key)] = value_idx;
+		_value_indexes[last_key] = value_idx;
 
 		return 1;
 	}
@@ -345,7 +346,7 @@ struct unsigned_map {
 
 	// access specified element without any bounds checking
 	const mapped_type& at_unchecked(key_type k) const {
-		return _values[_value_indexes[size_t(k)]].second;
+		return _values[_value_indexes[k]].second;
 	}
 	mapped_type& at_unchecked(key_type k) {
 		return const_cast<mapped_type&>(
@@ -377,22 +378,22 @@ struct unsigned_map {
 			return end();
 		}
 
-		return std::next(begin(), _value_indexes[size_t(k)]);
+		return std::next(begin(), _value_indexes[k]);
 	}
 	const_iterator find(key_type k) const {
 		if (!contains(k)) {
 			return end();
 		}
 
-		return std::next(begin(), _value_indexes[size_t(k)]);
+		return std::next(begin(), _value_indexes[k]);
 	}
 
 	// checks if the container contains element with specific key
 	bool contains(key_type k) const {
-		if (size_t(k) >= _value_indexes.size())
+		if (k >= _value_indexes.size())
 			return false;
 
-		if (_value_indexes[size_t(k)] == key_sentinel())
+		if (_value_indexes[k] == pos_sentinel())
 			return false;
 
 		return true;
@@ -427,20 +428,20 @@ struct unsigned_map {
 			const unsigned_map<K, U>& lhs, const unsigned_map<K, U>& rhs);
 
 private:
-	constexpr size_type key_sentinel() const noexcept {
-		return (std::numeric_limits<size_type>::max)();
+	constexpr pos_type pos_sentinel() const noexcept {
+		return (std::numeric_limits<pos_type>::max)();
 	}
 
 	void resize_indexes_if_needed(key_type k) {
-		if (size_t(k) < _value_indexes.size()) {
+		if (k < _value_indexes.size()) {
 			return;
 		}
 
-		if (size_t(k) == key_sentinel()) {
+		if (k == pos_sentinel()) {
 			throw std::out_of_range{ "unsigned_map : maximum size reached\n" };
 		}
 
-		_value_indexes.resize(size_t(k) + 1, key_sentinel());
+		_value_indexes.resize(k + 1, pos_sentinel());
 	}
 
 	template <class M>
@@ -456,12 +457,12 @@ private:
 
 		resize_indexes_if_needed(k);
 
-		_value_indexes[size_t(k)] = _values.size();
+		_value_indexes[k] = pos_type(_values.size());
 		_values.push_back({ k, std::forward<M>(obj) });
 		return { std::prev(_values.end()), true };
 	}
 
-	std::vector<size_type> _value_indexes; // key -> position
+	std::vector<pos_type> _value_indexes; // key -> position
 	std::vector<value_type> _values; // pair with reverse_lookup
 };
 
