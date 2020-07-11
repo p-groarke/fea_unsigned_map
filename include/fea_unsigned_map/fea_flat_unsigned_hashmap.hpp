@@ -192,8 +192,7 @@ struct flat_unsigned_hashmap {
 	// Constructors, destructors and assignement
 
 	flat_unsigned_hashmap()
-			: _lookup(std::vector<std::pair<key_type, pos_type>>(
-					init_count(), { {}, pos_sentinel() })) {
+			: _lookup(std::vector<lookup_data>(init_count())) {
 		// Starts with 7 elements to optimize some calls.
 		// Uses prime modulo sizes.
 	}
@@ -227,7 +226,7 @@ struct flat_unsigned_hashmap {
 	//}
 
 	explicit flat_unsigned_hashmap(
-			std::initializer_list<std::pair<key_type, value_type>> init)
+			const std::initializer_list<std::pair<key_type, value_type>>& init)
 			: flat_unsigned_hashmap() {
 		// TODO : benchmark and potentially optimize
 		for (const std::pair<key_type, value_type>& kv : init) {
@@ -304,8 +303,7 @@ struct flat_unsigned_hashmap {
 
 	// clears the contents
 	void clear() noexcept {
-		_lookup = std::vector<std::pair<key_type, pos_type>>(
-				init_count(), { {}, pos_sentinel() });
+		_lookup = std::vector<lookup_data>(init_count());
 		_reverse_lookup.clear();
 		_values.clear();
 	}
@@ -326,7 +324,8 @@ struct flat_unsigned_hashmap {
 	//		insert(*it);
 	//	}
 	//}
-	void insert(std::initializer_list<std::pair<key_type, value_type>> ilist) {
+	void insert(const std::initializer_list<std::pair<key_type, value_type>>&
+					ilist) {
 		// TODO : benchmark and potentially optimize
 		for (const std::pair<key_type, value_type>& kv : ilist) {
 			insert(kv.first, kv.second);
@@ -355,22 +354,22 @@ struct flat_unsigned_hashmap {
 	// exists
 	template <class... Args>
 	std::pair<iterator, bool> try_emplace(key_type key, Args&&... args) {
-		if (load_factor() > _max_load_factor) {
+		if (load_factor() >= _max_load_factor) {
 			size_type new_size = _lookup.size() * 2;
 			rehash(new_size);
 		}
 
 		auto lookup_it = find_first_slot(key);
-		if (lookup_it->second != pos_sentinel()) {
+		if (lookup_it->idx != pos_sentinel()) {
 			// Found valid key.
-			return { _values.begin() + lookup_it->second, false };
+			return { _values.begin() + lookup_it->idx, false };
 		}
 
 		pos_type new_pos = pos_type(_values.size());
 		_values.emplace_back(std::forward<Args>(args)...);
 		_reverse_lookup.push_back(key);
-		lookup_it->first = key;
-		lookup_it->second = new_pos;
+		lookup_it->key = key;
+		lookup_it->idx = new_pos;
 
 		assert(_reverse_lookup.size() == _values.size());
 		return { begin() + new_pos, true };
@@ -399,14 +398,14 @@ struct flat_unsigned_hashmap {
 	size_type erase(key_type k) {
 		auto lookup_it = find_first_slot(k);
 
-		if (lookup_it->second == pos_sentinel()) {
+		if (lookup_it->idx == pos_sentinel()) {
 			return 0;
 		}
 
-		if (lookup_it->second == _values.size() - 1) {
+		if (lookup_it->idx == _values.size() - 1) {
 			// No need for swap, object is already at end.
-			lookup_it->first = {};
-			lookup_it->second = pos_sentinel();
+			lookup_it->key = {};
+			lookup_it->idx = pos_sentinel();
 			_reverse_lookup.pop_back();
 			_values.pop_back();
 			assert(_values.size() == _reverse_lookup.size());
@@ -415,20 +414,21 @@ struct flat_unsigned_hashmap {
 		}
 
 		// todo : Better way than doing a key search? could be slow
+		// if we store the index of the key lookup, rehash gets slower
 		key_type last_key = _reverse_lookup.back();
 		auto last_lookup_it = find_first_slot(last_key);
 
 		// set new pos on last element.
-		last_lookup_it->second = lookup_it->second;
+		last_lookup_it->idx = lookup_it->idx;
 
 		// invalidate erased lookup
-		lookup_it->first = {};
-		lookup_it->second = pos_sentinel();
+		lookup_it->key = {};
+		lookup_it->idx = pos_sentinel();
 
 		// "swap" the elements
-		_values[last_lookup_it->second]
+		_values[last_lookup_it->idx]
 				= detail::flathashmap_maybe_move(_values.back());
-		_reverse_lookup[last_lookup_it->second] = last_key;
+		_reverse_lookup[last_lookup_it->idx] = last_key;
 
 		// delete last
 		_values.pop_back();
@@ -502,27 +502,22 @@ struct flat_unsigned_hashmap {
 	// finds element with specific key
 	const_iterator find(key_type k) const {
 		auto lookup_it = find_first_slot(k);
-		if (lookup_it->second == pos_sentinel()) {
+		if (lookup_it->idx == pos_sentinel()) {
 			return end();
 		}
 
-		assert(lookup_it->first == k);
-		assert(lookup_it->second < _values.size());
-		assert(lookup_it->second < _reverse_lookup.size());
+		assert(lookup_it->key == k);
+		assert(lookup_it->idx < _values.size());
+		assert(lookup_it->idx < _reverse_lookup.size());
 
-		return begin() + lookup_it->second;
+		return begin() + lookup_it->idx;
 	}
 	iterator find(key_type k) {
-		auto lookup_it = find_first_slot(k);
-		if (lookup_it->second == pos_sentinel()) {
-			return end();
-		}
+		auto const_it
+				= static_cast<const flat_unsigned_hashmap*>(this)->find(k);
 
-		assert(lookup_it->first == k);
-		assert(lookup_it->second < _values.size());
-		assert(lookup_it->second < _reverse_lookup.size());
-
-		return begin() + lookup_it->second;
+		// Convert to non-const iterator.
+		return _values.erase(const_it, const_it);
 	}
 
 	// checks if the container contains element with specific key
@@ -549,30 +544,28 @@ struct flat_unsigned_hashmap {
 		count = detail::next_prime(count);
 		assert(detail::is_prime(count));
 
-		std::vector<std::pair<key_type, pos_type>> new_lookup(
-				count, { {}, pos_sentinel() });
+		std::vector<lookup_data> new_lookup(count);
 
-		for (const std::pair<key_type, pos_type>& ks : _lookup) {
-			if (ks.second == pos_sentinel()) {
+		for (const lookup_data& lookup : _lookup) {
+			if (lookup.idx == pos_sentinel()) {
 				continue;
 			}
 
 			// new lookup position
-			size_type bucket_pos = ks.first % count;
+			size_type bucket_pos = key_to_index(lookup.key, count);
 
 			// find first free slot
 			auto it = std::find_if(new_lookup.begin() + bucket_pos,
-					new_lookup.end(),
-					[](const std::pair<key_type, pos_type>& search) {
-						return search.second == pos_sentinel();
+					new_lookup.end(), [](const lookup_data& search) {
+						return search.idx == pos_sentinel();
 					});
 
 			// No free slot after bucket_pos, find one from beginning.
 			if (it == new_lookup.end()) {
 				it = std::find_if(new_lookup.begin(),
 						new_lookup.begin() + bucket_pos,
-						[&](const std::pair<key_type, pos_type>& search) {
-							return search.second == pos_sentinel();
+						[&](const lookup_data& search) {
+							return search.idx == pos_sentinel();
 						});
 
 				// Something is really screwed up.
@@ -580,8 +573,8 @@ struct flat_unsigned_hashmap {
 			}
 
 			// creates new lookup, assigns the existing element pos
-			it->first = ks.first;
-			it->second = ks.second;
+			it->key = lookup.key;
+			it->idx = lookup.idx;
 		}
 		_lookup = std::move(new_lookup);
 	}
@@ -598,6 +591,19 @@ struct flat_unsigned_hashmap {
 			const flat_unsigned_hashmap<K, U>& rhs);
 
 private:
+	struct lookup_data {
+		key_type key = {};
+		pos_type idx = pos_sentinel();
+		// bool has_more_keys = false;
+		uint8_t num_clashes = 0;
+	};
+
+	static constexpr size_type key_to_index(
+			key_type key, size_type lookup_size) {
+		// return (size_type(key) * 2) % lookup_size;
+		return size_type(key) % lookup_size;
+	}
+
 	static constexpr pos_type pos_sentinel() noexcept {
 		return (std::numeric_limits<pos_type>::max)();
 	}
@@ -606,20 +612,22 @@ private:
 		return 7;
 	}
 
+	// returns lookup iterator to either the lookup if it exists, or the first
+	// free slot.
 	auto find_first_slot(key_type key) const {
-		size_type search_pos = key % _lookup.size();
+		size_type search_pos = key_to_index(key, _lookup.size());
 
 		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
-				[&](const std::pair<key_type, pos_type>& search) {
-					return search.first == key
-							|| search.second == pos_sentinel();
+				[&](const lookup_data& search) {
+					return search.key == key || search.idx == pos_sentinel();
 				});
+
 		// No free slot after search_pos, find one from beginning.
 		if (it == _lookup.end()) {
 			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
-					[&](const std::pair<key_type, pos_type>& search) {
-						return search.first == key
-								|| search.second == pos_sentinel();
+					[&](const lookup_data& search) {
+						return search.key == key
+								|| search.idx == pos_sentinel();
 					});
 
 			// Something is really screwed up.
@@ -628,45 +636,26 @@ private:
 		return it;
 	}
 	auto find_first_slot(key_type key) {
-		size_type search_pos = key % _lookup.size();
-		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
-				[&](const std::pair<key_type, pos_type>& search) {
-					return search.first == key
-							|| search.second == pos_sentinel();
-				});
+		auto const_it = static_cast<const flat_unsigned_hashmap*>(this)
+								->find_first_slot(key);
 
-		// No free slot after search_pos, find one from beginning.
-		if (it == _lookup.end()) {
-			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
-					[&](const std::pair<key_type, pos_type>& search) {
-						return search.first == key
-								|| search.second == pos_sentinel();
-					});
-
-			// Something is really screwed up.
-			assert(it != _lookup.begin() + search_pos);
-		}
-		return it;
-	}
-
-	key_type reverse_lookup(size_type idx) const {
-		assert(idx < _reverse_lookup.size());
-		return _reverse_lookup[idx];
+		// Convert to non-const iterator.
+		return _lookup.erase(const_it, const_it);
 	}
 
 	template <class M>
 	std::pair<iterator, bool> minsert(
 			key_type key, M&& value, bool assign_found = false) {
-		if (load_factor() > _max_load_factor) {
+		if (load_factor() >= _max_load_factor) {
 			size_type new_size = _lookup.size() * 2;
 			rehash(new_size);
 		}
 
 		auto lookup_it = find_first_slot(key);
-		if (lookup_it->second != pos_sentinel()) {
+		if (lookup_it->idx != pos_sentinel()) {
 			// Found valid key.
 
-			auto it = _values.begin() + lookup_it->second;
+			auto it = _values.begin() + lookup_it->idx;
 			if (assign_found) {
 				*it = std::forward<M>(value);
 			}
@@ -676,19 +665,21 @@ private:
 		pos_type new_pos = pos_type(_values.size());
 		_values.push_back(std::forward<M>(value));
 		_reverse_lookup.push_back(key);
-		lookup_it->first = key;
-		lookup_it->second = new_pos;
+		lookup_it->key = key;
+		lookup_it->idx = new_pos;
 
 		assert(_reverse_lookup.size() == _values.size());
 		return { begin() + new_pos, true };
 	}
 
+	// when to resize lookup
+	float _max_load_factor = .75f;
 
-	// max load is at 50% because we want many holes to minimize the insert N.
-	// todo : confirm with benchmarks
-	float _max_load_factor = 0.50f;
-	std::vector<std::pair<key_type, pos_type>> _lookup;
-	std::vector<key_type> _reverse_lookup; // used in erase
+	// stores the key at hash and points to the values index.
+	std::vector<lookup_data> _lookup;
+	// used in erase for swap & pop
+	std::vector<pos_type> _reverse_lookup;
+	// packed values
 	std::vector<value_type> _values;
 };
 
@@ -699,7 +690,7 @@ inline bool operator==(const flat_unsigned_hashmap<Key, T>& lhs,
 		return false;
 
 	for (size_t i = 0; i < lhs.size(); ++i) {
-		Key k = lhs.reverse_lookup(i);
+		Key k = lhs._reverse_lookup[i];
 		auto it = rhs.find(k);
 		if (it == rhs.end()) {
 			return false;
