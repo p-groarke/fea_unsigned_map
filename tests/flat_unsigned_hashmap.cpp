@@ -293,6 +293,7 @@ TEST(flat_unsigned_hashmap, basics) {
 	EXPECT_EQ(map1[4], test2{ 4 });
 	EXPECT_EQ(*map1.find(5), test2{ 5 });
 
+	// TODO :
 	// map2 = fea::flat_unsigned_hashmap<size_t, test2>(map1.begin(),
 	// map1.end()); EXPECT_EQ(map1.size(), map2.size()); EXPECT_EQ(map1, map2);
 
@@ -336,5 +337,294 @@ TEST(flat_unsigned_hashmap, uniqueptr) {
 	EXPECT_EQ(map.count(5), 0u);
 	map.clear();
 	EXPECT_EQ(map.size(), 0u);
+}
+
+
+template <class KeyT>
+void do_basic_test() {
+	constexpr KeyT small_num = 10;
+
+	fea::flat_unsigned_hashmap<KeyT, test2> map1{ small_num };
+	map1.reserve(100);
+	EXPECT_EQ(map1.capacity(), 100u);
+	map1.shrink_to_fit();
+	EXPECT_EQ(map1.capacity(), 0u);
+	EXPECT_TRUE(map1.empty());
+	EXPECT_EQ(map1.size(), 0u);
+	EXPECT_FALSE(map1.contains(1));
+	EXPECT_EQ(map1.count(1), 0u);
+
+	map1.clear();
+	EXPECT_TRUE(map1.empty());
+	EXPECT_EQ(map1.size(), 0u);
+	EXPECT_FALSE(map1.contains(1));
+	EXPECT_EQ(map1.count(1), 0u);
+
+	for (KeyT i = 0; i < small_num; ++i) {
+		auto ret_pair = map1.insert(i, i);
+		EXPECT_TRUE(ret_pair.second);
+		EXPECT_EQ(*ret_pair.first, test2{ i });
+	}
+	for (KeyT i = 0; i < small_num; ++i) {
+		auto ret_pair = map1.insert(i, i);
+		EXPECT_FALSE(ret_pair.second);
+		EXPECT_EQ(*ret_pair.first, test2{ i });
+	}
+	for (KeyT i = 0; i < small_num; ++i) {
+		test2 t{ i };
+		auto ret_pair = map1.insert(i, t);
+		EXPECT_FALSE(ret_pair.second);
+		EXPECT_EQ(*ret_pair.first, t);
+	}
+
+	fea::flat_unsigned_hashmap<KeyT, test2> map2{ map1 };
+	fea::flat_unsigned_hashmap<KeyT, test2> map_ded{ map1 };
+	fea::flat_unsigned_hashmap<KeyT, test2> map3{ std::move(map_ded) };
+
+	EXPECT_EQ(map1, map2);
+	EXPECT_EQ(map1, map3);
+
+	EXPECT_EQ(map1.max_size(), map2.max_size());
+	EXPECT_EQ(map1.max_size(), map3.max_size());
+
+	EXPECT_EQ(map1.size(), small_num);
+	EXPECT_EQ(map2.size(), small_num);
+	EXPECT_EQ(map3.size(), small_num);
+
+	EXPECT_FALSE(map1.empty());
+	EXPECT_FALSE(map2.empty());
+	EXPECT_FALSE(map3.empty());
+
+	map1.clear();
+	EXPECT_TRUE(map1.empty());
+	EXPECT_EQ(map1.size(), 0u);
+
+	auto it = map1.find(1);
+	EXPECT_EQ(it, map1.end());
+	EXPECT_THROW(map1.at(1), std::out_of_range);
+	EXPECT_FALSE(map1.contains(1));
+	EXPECT_EQ(map1.count(1), 0u);
+
+	EXPECT_EQ(map1[1], test2{});
+
+	map1.at(1) = test2{ 1 };
+	EXPECT_NE(map1[1], test2{});
+
+
+	map1 = map2;
+
+	for (KeyT i = 0; i < small_num; ++i) {
+		EXPECT_EQ(map1[i], test2{ i });
+		EXPECT_EQ(map1.at(i), test2{ i });
+		EXPECT_EQ(map1.at_unchecked(i), test2{ i });
+		EXPECT_EQ(*map1.find(i), test2{ i });
+		EXPECT_TRUE(map1.contains(i));
+		EXPECT_EQ(map1.count(i), 1u);
+
+		EXPECT_EQ(map2[i], test2{ i });
+		EXPECT_EQ(map2.at(i), test2{ i });
+		EXPECT_EQ(map2.at_unchecked(i), test2{ i });
+		EXPECT_EQ(*map2.find(i), test2{ i });
+		EXPECT_TRUE(map2.contains(i));
+		EXPECT_EQ(map2.count(i), 1u);
+
+		EXPECT_EQ(map3[i], test2{ i });
+		EXPECT_EQ(map3.at(i), test2{ i });
+		EXPECT_EQ(map3.at_unchecked(i), test2{ i });
+		EXPECT_EQ(*map3.find(i), test2{ i });
+		EXPECT_TRUE(map2.contains(i));
+		EXPECT_EQ(map2.count(i), 1u);
+	}
+
+	map1.erase(1);
+	EXPECT_EQ(map1.size(), small_num - 1);
+	EXPECT_NE(map1, map2);
+	EXPECT_NE(map1, map3);
+	EXPECT_FALSE(map1.contains(1));
+	EXPECT_EQ(map1.count(1), 0u);
+
+	map1.insert(1, 1);
+	EXPECT_EQ(map1.size(), small_num);
+	EXPECT_EQ(map1, map2);
+	EXPECT_EQ(map1, map3);
+	EXPECT_TRUE(map1.contains(1));
+	EXPECT_EQ(map1.count(1), 1u);
+
+	map1.erase(map1.begin(), map1.end());
+	EXPECT_TRUE(map1.empty());
+	EXPECT_EQ(map1.size(), 0u);
+
+	it = map1.find(1);
+	EXPECT_EQ(it, map1.end());
+	EXPECT_THROW(map1.at(1), std::out_of_range);
+	EXPECT_FALSE(map1.contains(1));
+	EXPECT_EQ(map1.count(1), 0u);
+
+	map_ded = map2;
+	map1 = std::move(map_ded);
+
+	map1.erase(map1.begin());
+	EXPECT_EQ(map1.size(), small_num - 1);
+	EXPECT_NE(map1, map2);
+	EXPECT_NE(map1, map3);
+	EXPECT_FALSE(map1.contains(0));
+	EXPECT_EQ(map1.count(0), 0u);
+	EXPECT_THROW(map1.at(0), std::out_of_range);
+
+	map1 = map2;
+
+	for (it = map1.begin(); it != map1.end();) {
+		if (it->val % 2 == 1) {
+			size_t idx = std::distance(map1.begin(), it);
+			map1.erase(it);
+			it = map1.begin() + idx;
+		} else {
+			++it;
+		}
+	}
+	EXPECT_EQ(map1.size(), small_num / 2);
+
+	for (auto t : map1) {
+		EXPECT_EQ(t.val % 2, 0u);
+	}
+
+	map1 = map2;
+
+	for (it = map1.begin() + 1; it != map1.end();) {
+		if (it->val % 2 == 0) {
+			size_t idx = std::distance(map1.begin(), it);
+			map1.erase(it, std::next(it, 2));
+			it = map1.begin() + idx;
+		} else {
+			++it;
+		}
+	}
+	EXPECT_EQ(map1.size(), 4u);
+	EXPECT_TRUE(map1.contains(0));
+	EXPECT_TRUE(map1.contains(1));
+	EXPECT_TRUE(map1.contains(9));
+	EXPECT_TRUE(map1.contains(7));
+
+	map1 = map2;
+
+	{
+		auto ret_pair1 = map1.insert(19, 19);
+		EXPECT_TRUE(ret_pair1.second);
+
+		auto ret_pair2 = map1.insert(19, 42);
+		EXPECT_FALSE(ret_pair2.second);
+		EXPECT_EQ(ret_pair2.first, ret_pair1.first);
+		EXPECT_EQ(map1.at(19), test2{ 19 });
+		EXPECT_EQ(map1.at_unchecked(19), test2{ 19 });
+
+		ret_pair2 = map1.insert_or_assign(19, test2{ 42 });
+		EXPECT_FALSE(ret_pair2.second);
+		EXPECT_EQ(ret_pair2.first, ret_pair1.first);
+		EXPECT_EQ(map1.at(19), test2{ 42 });
+		EXPECT_EQ(map1.at_unchecked(19), test2{ 42 });
+		ret_pair2 = map1.insert_or_assign(19, test2{ 19 });
+	}
+
+	map2.insert(20, { 20 });
+	map3.insert(20, { 20 });
+	EXPECT_NE(map1, map2);
+	EXPECT_NE(map1, map3);
+
+	{
+		map1.emplace(20, test2{ 20 });
+		test2 t{ 21 };
+		map1.emplace(21, t);
+	}
+
+	map1 = map2;
+	map3 = map2;
+
+	map1 = fea::flat_unsigned_hashmap<KeyT, test2>(
+			{ { 0, { 0 } }, { 1, { 1 } }, { 2, { 2 } } });
+	map2 = fea::flat_unsigned_hashmap<KeyT, test2>(
+			{ { 3, { 3 } }, { 4, { 4 } }, { 5, { 5 } } });
+	map3 = fea::flat_unsigned_hashmap<KeyT, test2>(
+			{ { 6, { 6 } }, { 7, { 7 } }, { 8, { 8 } } });
+
+	EXPECT_EQ(map1.size(), 3u);
+	EXPECT_TRUE(map1.contains(0));
+	EXPECT_TRUE(map1.contains(1));
+	EXPECT_TRUE(map1.contains(2));
+	EXPECT_EQ(map1.at(0), test2{ 0 });
+	EXPECT_EQ(map1.at_unchecked(0), test2{ 0 });
+	EXPECT_EQ(map1[1], test2{ 1 });
+	EXPECT_EQ(*map1.find(2), test2{ 2 });
+
+	EXPECT_EQ(map2.size(), 3u);
+	EXPECT_TRUE(map2.contains(3));
+	EXPECT_TRUE(map2.contains(4));
+	EXPECT_TRUE(map2.contains(5));
+	EXPECT_EQ(map2.at(3), test2{ 3 });
+	EXPECT_EQ(map2.at_unchecked(3), test2{ 3 });
+	EXPECT_EQ(map2[4], test2{ 4 });
+	EXPECT_EQ(*map2.find(5), test2{ 5 });
+
+	EXPECT_EQ(map3.size(), 3u);
+	EXPECT_TRUE(map3.contains(6));
+	EXPECT_TRUE(map3.contains(7));
+	EXPECT_TRUE(map3.contains(8));
+	EXPECT_EQ(map3[7], test2{ 7 });
+	EXPECT_EQ(*map3.find(8), test2{ 8 });
+
+	{
+		fea::flat_unsigned_hashmap<KeyT, test2> map1_back = map1;
+		fea::flat_unsigned_hashmap<KeyT, test2> map2_back{ map2 };
+		fea::flat_unsigned_hashmap<KeyT, test2> map3_back{ map3 };
+
+		map1.swap(map2);
+		EXPECT_EQ(map1, map2_back);
+		EXPECT_EQ(map2, map1_back);
+
+		using std::swap;
+		swap(map1, map3);
+
+		EXPECT_EQ(map1, map3_back);
+		EXPECT_EQ(map3, map2_back);
+
+		map1.swap(map2);
+		EXPECT_EQ(map1, map1_back);
+	}
+
+	map1.insert({ { 3, { 3 } }, { 4, { 4 } }, { 5, { 5 } } });
+
+	EXPECT_EQ(map1.size(), 6u);
+	EXPECT_TRUE(map1.contains(0));
+	EXPECT_TRUE(map1.contains(1));
+	EXPECT_TRUE(map1.contains(2));
+	EXPECT_TRUE(map1.contains(3));
+	EXPECT_TRUE(map1.contains(4));
+	EXPECT_TRUE(map1.contains(5));
+
+	EXPECT_EQ(map1.at(0), test2{ 0 });
+	EXPECT_EQ(map1.at_unchecked(0), test2{ 0 });
+	EXPECT_EQ(map1[1], test2{ 1 });
+	EXPECT_EQ(*map1.find(2), test2{ 2 });
+	EXPECT_EQ(map1.at(3), test2{ 3 });
+	EXPECT_EQ(map1.at_unchecked(3), test2{ 3 });
+	EXPECT_EQ(map1[4], test2{ 4 });
+	EXPECT_EQ(*map1.find(5), test2{ 5 });
+
+	// TODO :
+	// map2 = fea::flat_unsigned_hashmap<size_t, test2>(map1.begin(),
+	// map1.end()); EXPECT_EQ(map1.size(), map2.size()); EXPECT_EQ(map1, map2);
+
+	// map3.clear();
+	// map3.insert(map1.begin(), map1.end());
+	// EXPECT_EQ(map1.size(), map3.size());
+	// EXPECT_EQ(map1, map3);
+	// EXPECT_EQ(map2.size(), map3.size());
+	// EXPECT_EQ(map2, map3);
+}
+
+TEST(flat_unsigned_hashmap, all_unsignes) {
+	do_basic_test<uint8_t>();
+	do_basic_test<uint16_t>();
+	do_basic_test<uint32_t>();
+	do_basic_test<uint64_t>();
 }
 } // namespace
