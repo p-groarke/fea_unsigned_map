@@ -41,9 +41,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 This is a more traditional-ish "hash map".
 
+- It is flat because iterators are not pairs, and user values are stored
+contiguously.
+- It is unsigned because it only accepts unsigned keys (todo : allow providing
+std::hash).
+- It is a hashmap because the container doesn't grow as big as the
+biggest key.
+
 Its special characteristics are :
 	- Like the unsigned_map, your keys must be unique unsigned numbers.
-	- WARNING : The map does not support key collisions (no hashing).
 	- Unlike unsigned_map, you may use as big of keys as you want. The key
 		container doesn't grow as big as N.
 	- Values are packed, so you may iterate values quickly (the map supports
@@ -61,6 +67,24 @@ inline constexpr std::conditional_t<!std::is_move_constructible<T>::value
 		const T&, T&&>
 flathashmap_maybe_move(T& arg) noexcept {
 	return std::move(arg);
+}
+
+template <class Func>
+struct flathhashmap_on_exit {
+	flathhashmap_on_exit(Func func)
+			: _func(func) {
+	}
+	~flathhashmap_on_exit() {
+		_func();
+	}
+
+private:
+	Func _func;
+};
+
+template <class Func>
+auto flathashmap_make_on_exit(Func func) {
+	return flathhashmap_on_exit<Func>{ func };
 }
 
 // https://stackoverflow.com/questions/30052316/find-next-prime-number-algorithm
@@ -108,43 +132,43 @@ T next_prime(T a) {
 	case 662: {
 		return 673;
 	} break;
-	case 1346: {
+	case 1'346: {
 		return 1361;
 	} break;
-	case 2722: {
+	case 2'722: {
 		return 2729;
 	} break;
-	case 5458: {
+	case 5'458: {
 		return 5471;
 	} break;
-	case 10942: {
+	case 10'942: {
 		return 10949;
 	} break;
-	case 21898: {
+	case 21'898: {
 		return 21911;
 	} break;
-	case 43822: {
+	case 43'822: {
 		return 43853;
 	} break;
-	case 87706: {
+	case 87'706: {
 		return 87719;
 	} break;
-	case 175438: {
+	case 175'438: {
 		return 175447;
 	} break;
-	case 350894: {
+	case 350'894: {
 		return 350899;
 	} break;
-	case 701798: {
+	case 701'798: {
 		return 701819;
 	} break;
-	case 1403638: {
+	case 1'403'638: {
 		return 1403641;
 	} break;
-	case 2807282: {
+	case 2'807'282: {
 		return 2807303;
 	} break;
-	case 5614606: {
+	case 5'614'606: {
 		return 5614657;
 	} break;
 	default: {
@@ -166,7 +190,7 @@ struct flat_unsigned_hashmap {
 	using mapped_type = T;
 	using value_type = mapped_type;
 	using size_type = std::size_t;
-	using pos_type = Key;
+	using idx_type = Key;
 	using difference_type = std::ptrdiff_t;
 
 	using allocator_type = typename std::vector<value_type>::allocator_type;
@@ -275,7 +299,7 @@ struct flat_unsigned_hashmap {
 	// returns the maximum possible number of elements
 	size_type max_size() const noexcept {
 		// -1 due to sentinel
-		return pos_sentinel() - 1;
+		return idx_sentinel() - 1;
 	}
 
 	// reserves storage
@@ -303,6 +327,7 @@ struct flat_unsigned_hashmap {
 
 	// clears the contents
 	void clear() noexcept {
+		_hash_max = init_count() / 2;
 		_lookup = std::vector<lookup_data>(init_count());
 		_reverse_lookup.clear();
 		_values.clear();
@@ -354,18 +379,18 @@ struct flat_unsigned_hashmap {
 	// exists
 	template <class... Args>
 	std::pair<iterator, bool> try_emplace(key_type key, Args&&... args) {
-		if (load_factor() >= _max_load_factor) {
-			size_type new_size = _lookup.size() * 2;
+		if (load_factor() >= max_load_factor()) {
+			size_type new_size = hash_max() * 2;
 			rehash(new_size);
 		}
 
 		auto lookup_it = find_first_slot(key);
-		if (lookup_it->idx != pos_sentinel()) {
+		if (lookup_it->idx != idx_sentinel()) {
 			// Found valid key.
 			return { _values.begin() + lookup_it->idx, false };
 		}
 
-		pos_type new_pos = pos_type(_values.size());
+		idx_type new_pos = idx_type(_values.size());
 		_values.emplace_back(std::forward<Args>(args)...);
 		_reverse_lookup.push_back(key);
 		lookup_it->key = key;
@@ -397,15 +422,18 @@ struct flat_unsigned_hashmap {
 	}
 	size_type erase(key_type k) {
 		auto lookup_it = find_first_slot(k);
-
-		if (lookup_it->idx == pos_sentinel()) {
+		if (lookup_it->idx == idx_sentinel()) {
 			return 0;
 		}
+
+		auto e = detail::flathashmap_make_on_exit(
+				[lookup_idx = std::distance(_lookup.begin(), lookup_it),
+						this]() { repack_collisions(lookup_idx); });
 
 		if (lookup_it->idx == _values.size() - 1) {
 			// No need for swap, object is already at end.
 			lookup_it->key = {};
-			lookup_it->idx = pos_sentinel();
+			lookup_it->idx = idx_sentinel();
 			_reverse_lookup.pop_back();
 			_values.pop_back();
 			assert(_values.size() == _reverse_lookup.size());
@@ -422,8 +450,7 @@ struct flat_unsigned_hashmap {
 		last_lookup_it->idx = lookup_it->idx;
 
 		// invalidate erased lookup
-		lookup_it->key = {};
-		lookup_it->idx = pos_sentinel();
+		*lookup_it = {};
 
 		// "swap" the elements
 		_values[last_lookup_it->idx]
@@ -440,6 +467,8 @@ struct flat_unsigned_hashmap {
 
 	// swaps the contents
 	void swap(flat_unsigned_hashmap& other) noexcept {
+		std::swap(_max_load_factor, other._max_load_factor);
+		std::swap(_hash_max, other._hash_max);
 		_lookup.swap(other._lookup);
 		_reverse_lookup.swap(other._reverse_lookup);
 		_values.swap(other._values);
@@ -502,7 +531,7 @@ struct flat_unsigned_hashmap {
 	// finds element with specific key
 	const_iterator find(key_type k) const {
 		auto lookup_it = find_first_slot(k);
-		if (lookup_it->idx == pos_sentinel()) {
+		if (lookup_it->idx == idx_sentinel()) {
 			return end();
 		}
 
@@ -530,7 +559,7 @@ struct flat_unsigned_hashmap {
 
 	// returns average number of elements per bucket
 	float load_factor() const noexcept {
-		return _values.size() / float(_lookup.size());
+		return _values.size() / float(hash_max());
 	}
 
 	float max_load_factor() const noexcept {
@@ -544,39 +573,26 @@ struct flat_unsigned_hashmap {
 		count = detail::next_prime(count);
 		assert(detail::is_prime(count));
 
-		std::vector<lookup_data> new_lookup(count);
+		// Extra space for collisions in-between keys.
+		std::vector<lookup_data> new_lookup(count * 2);
 
 		for (const lookup_data& lookup : _lookup) {
-			if (lookup.idx == pos_sentinel()) {
+			if (lookup.idx == idx_sentinel()) {
 				continue;
 			}
 
 			// new lookup position
-			size_type bucket_pos = key_to_index(lookup.key, count);
-
-			// find first free slot
-			auto it = std::find_if(new_lookup.begin() + bucket_pos,
-					new_lookup.end(), [](const lookup_data& search) {
-						return search.idx == pos_sentinel();
-					});
-
-			// No free slot after bucket_pos, find one from beginning.
-			if (it == new_lookup.end()) {
-				it = std::find_if(new_lookup.begin(),
-						new_lookup.begin() + bucket_pos,
-						[&](const lookup_data& search) {
-							return search.idx == pos_sentinel();
-						});
-
-				// Something is really screwed up.
-				assert(it != new_lookup.end());
-			}
+			size_type new_bucket_pos = key_to_index(lookup.key, count);
+			auto it = find_first_hole(
+					new_lookup.begin(), new_lookup.end(), new_bucket_pos);
 
 			// creates new lookup, assigns the existing element pos
 			it->key = lookup.key;
 			it->idx = lookup.idx;
 		}
+
 		_lookup = std::move(new_lookup);
+		_hash_max = count;
 	}
 
 
@@ -592,47 +608,90 @@ struct flat_unsigned_hashmap {
 
 private:
 	struct lookup_data {
-		key_type key = {};
-		pos_type idx = pos_sentinel();
-		// bool has_more_keys = false;
-		uint8_t num_clashes = 0;
+		// The user provided key.
+		key_type key = key_sentinel();
+
+		// The index of the user data in the _values container.
+		idx_type idx = idx_sentinel();
 	};
 
-	static constexpr size_type key_to_index(
-			key_type key, size_type lookup_size) {
-		// return (size_type(key) * 2) % lookup_size;
-		return size_type(key) % lookup_size;
+	// We use this since the hash max is a prime, but we allocate * 2 to have
+	// holes in between keys.
+	// This should always be _lookup.size() / 2
+	size_type hash_max() const {
+		assert(_hash_max == _lookup.size() / 2);
+		return _hash_max;
 	}
 
-	static constexpr pos_type pos_sentinel() noexcept {
-		return (std::numeric_limits<pos_type>::max)();
+	size_type key_to_index(key_type key) const {
+		size_type ret = key_to_index(key, hash_max());
+		assert(ret < _lookup.size());
+		return ret;
+	}
+	static constexpr size_type key_to_index(key_type key, size_type h_max) {
+		return (size_type(key) % h_max) * 2;
+		// return size_type(key) % lookup_size;
+	}
+
+	static constexpr key_type key_sentinel() noexcept {
+		return (std::numeric_limits<key_type>::max)();
+	}
+	static constexpr idx_type idx_sentinel() noexcept {
+		return (std::numeric_limits<idx_type>::max)();
 	}
 
 	static constexpr size_type init_count() noexcept {
-		return 7;
+		return 14; // 7 * 2, hash_max == 7
 	}
 
-	// returns lookup iterator to either the lookup if it exists, or the first
+	// Custom find_if.
+	// Tests start, then ++start and every odd iterator after that until
+	// sentinel.
+	// If nothing is found in the range [start, end[, wraps around and
+	// tests [beg, start[.
+	// This pattern is used since collisions are only stored
+	// in-between keys (odd indexes).
+	template <class Iter, class Func>
+	static auto find_slot(Iter beg, Iter start, Iter end, Func func) {
+
+		// Test first.
+		if (func(*start)) {
+			return start;
+		}
+
+		// Now test "holes" (collisions) for predicate (odd slots only).
+		for (auto it = std::next(start); it < end; std::advance(it, 2)) {
+			assert(std::distance(beg, it) % 2 != 0);
+			if (func(*it)) {
+				return it;
+			}
+		}
+
+		// Didn't find slot, loop around and check odd slots starting from
+		// ++beg.
+		for (auto it = std::next(beg); it < start; std::advance(it, 2)) {
+			assert(std::distance(beg, it) % 2 != 0);
+			if (func(*it)) {
+				return it;
+			}
+		}
+
+		// Didn't find anything.
+		return end;
+	}
+
+	// Returns lookup iterator to either the lookup if it exists, or the first
 	// free slot.
 	auto find_first_slot(key_type key) const {
-		size_type search_pos = key_to_index(key, _lookup.size());
+		size_type search_pos = key_to_index(key);
 
-		auto it = std::find_if(_lookup.begin() + search_pos, _lookup.end(),
-				[&](const lookup_data& search) {
-					return search.key == key || search.idx == pos_sentinel();
+		auto it = find_slot(_lookup.begin(), _lookup.begin() + search_pos,
+				_lookup.end(), [&](const lookup_data& search) {
+					return search.key == key || search.idx == idx_sentinel();
 				});
 
-		// No free slot after search_pos, find one from beginning.
-		if (it == _lookup.end()) {
-			it = std::find_if(_lookup.begin(), _lookup.begin() + search_pos,
-					[&](const lookup_data& search) {
-						return search.key == key
-								|| search.idx == pos_sentinel();
-					});
-
-			// Something is really screwed up.
-			assert(it != _lookup.end());
-		}
+		// Something went horribly wrong.
+		assert(it != _lookup.end());
 		return it;
 	}
 	auto find_first_slot(key_type key) {
@@ -643,26 +702,147 @@ private:
 		return _lookup.erase(const_it, const_it);
 	}
 
+	// Find first free slot given a lookup idx.
+	template <class Iter>
+	static auto find_first_hole(Iter beg, Iter end, size_type bucket_idx) {
+
+		// find first free slot
+		auto it = find_slot(
+				beg, beg + bucket_idx, end, [](const lookup_data& search) {
+					return search.idx == idx_sentinel();
+				});
+
+		// Something went horribly wrong.
+		assert(it != end);
+		return it;
+	}
+
+	// Packs the collisions so all clashing keys are contigous.
+	// This is necessary after erase since erase could create a hole, with a
+	// collision left over after that whole. This would break the container
+	// guarantee that all collisions are packed until the first hole.
+	void repack_collisions(size_type hole_idx) {
+		assert(hole_idx < _lookup.size());
+		assert(_lookup[hole_idx].idx == idx_sentinel());
+
+		size_type swap_left_idx = hole_idx;
+		size_type swap_right_idx = hole_idx + 1;
+
+		// Only test odd slots, since that's where collisions are stored.
+		if (swap_right_idx % 2 == 0) {
+			// This can happen if the hole was actually a collision.
+			++swap_right_idx;
+		}
+
+		//// Increments the index appropriately.
+		// auto inc_right_idx = [this](size_type& idx) {
+		//	idx += 2;
+
+		//	// Wrap around if there is no free slot at end of lookup.
+		//	if (idx >= _lookup.size()) {
+		//		idx = 1; // skip first, use odd slots
+		//	}
+		//};
+
+		// Sort the collisions.
+		// Do this until you find a hole. The container must guarantee
+		// collisions are packed in a first serve manner.
+		while (swap_right_idx < _lookup.size()) {
+			assert(swap_right_idx % 2 != 0); // only odds
+
+			if (_lookup[swap_right_idx].idx == idx_sentinel()) {
+				// We are done, have reached the end of this collision "group".
+				return;
+			}
+
+			// This tests if the right candidate collisions index is would be
+			// "lost" when swapped with left hole.
+			// Since the map stores and searches for collisions after the key,
+			// this would break searches.
+			size_type candidate_idx = key_to_index(_lookup[swap_right_idx].key);
+			if (candidate_idx > swap_left_idx) {
+				// Continue searching for swappable collisions.
+				swap_right_idx += 2;
+				continue;
+			}
+
+			lookup_data& right = _lookup[swap_right_idx];
+			_lookup[swap_left_idx] = right;
+			right = {}; // Invalidate in case it is the last.
+
+			swap_left_idx = swap_right_idx;
+			swap_right_idx += 2;
+		}
+
+
+		// If we reach here, we need to wrap around container and pack up-to
+		// hole_idx.
+
+		// todo : figure this out!
+		// assert(false);
+		swap_right_idx = 1; // start at first odd.
+
+		while (swap_right_idx < hole_idx) {
+			assert(swap_right_idx % 2 != 0); // only odds
+
+			if (_lookup[swap_right_idx].idx == idx_sentinel()) {
+				return;
+			}
+
+			size_type candidate_idx = key_to_index(_lookup[swap_right_idx].key);
+
+			if (swap_left_idx >= hole_idx) {
+				// We are after the initial hole, aka the end of the container.
+				// Check that the candidate belongs at the end of the container,
+				// but does not belong at the beginning.
+				if (candidate_idx > swap_left_idx || candidate_idx < hole_idx) {
+					swap_right_idx += 2;
+					continue;
+				}
+			} else {
+				// We are before the initial hole, aka the beginning of the
+				// container.
+				// Normal behavior.
+
+				if (candidate_idx > swap_left_idx) {
+					// Continue searching for swappable collisions.
+					swap_right_idx += 2;
+					continue;
+				}
+			}
+
+			lookup_data& right = _lookup[swap_right_idx];
+			_lookup[swap_left_idx] = right;
+			right = {}; // Invalidate in case it is the last.
+
+			swap_left_idx = swap_right_idx;
+			swap_right_idx += 2;
+		}
+
+		// Something went horribly wrong.
+		assert(false);
+	}
+
 	template <class M>
 	std::pair<iterator, bool> minsert(
 			key_type key, M&& value, bool assign_found = false) {
-		if (load_factor() >= _max_load_factor) {
-			size_type new_size = _lookup.size() * 2;
+		if (load_factor() >= max_load_factor()) {
+			size_type new_size = hash_max() * 2;
 			rehash(new_size);
 		}
 
 		auto lookup_it = find_first_slot(key);
-		if (lookup_it->idx != pos_sentinel()) {
+		if (lookup_it->idx != idx_sentinel()) {
 			// Found valid key.
 
-			auto it = _values.begin() + lookup_it->idx;
+			auto data_it = _values.begin() + lookup_it->idx;
 			if (assign_found) {
-				*it = std::forward<M>(value);
+				*data_it = std::forward<M>(value);
 			}
-			return { it, false };
+			return { data_it, false };
 		}
 
-		pos_type new_pos = pos_type(_values.size());
+		idx_type new_pos = idx_type(_values.size());
 		_values.push_back(std::forward<M>(value));
 		_reverse_lookup.push_back(key);
 		lookup_it->key = key;
@@ -672,14 +852,32 @@ private:
 		return { begin() + new_pos, true };
 	}
 
-	// when to resize lookup
+	// OK, so, we always have max_hash * 2 lookups. The load_factor will be
+	// tested on max_hash, and not on _lookup.size().
+	// This guarantees we will resize even if we fill up collisions only.
+	// It also leaves some space at the end since wrapping around container is
+	// bad.
 	float _max_load_factor = .75f;
 
-	// stores the key at hash and points to the values index.
+	// The hash max value is the current theoretical size of the lookup,
+	// ignoring extra space for collisions.
+	// Because of our bucket scheme, we keep track of this value seperately than
+	// the actual size of the lookup vector.
+	// Hash max is always a prime, and will be used to modulo the user keys.
+	size_type _hash_max = init_count() / 2;
+
+	// Stores the key at hash and points to the values index.
+	// Lookups at odd indexes are collisions stored in-place.
 	std::vector<lookup_data> _lookup;
-	// used in erase for swap & pop
-	std::vector<pos_type> _reverse_lookup;
-	// packed values
+
+	// Used in erase for swap & pop.
+	std::vector<key_type> _reverse_lookup;
+
+	// Packed user values.
+	// Since this is a flat map, the values are tightly packed instead of in
+	// pairs.
+	// This means we cannot fulfill standard apis.
+	// todo : make unsigned_hashmap for cases when you need pair iterators.
 	std::vector<value_type> _values;
 };
 

@@ -306,11 +306,38 @@ void do_basic_test() {
 	// EXPECT_EQ(map2, map3);
 
 	// erase
+	const KeyT init_hash_max = 7;
+	const float max_load = map1.max_load_factor();
+	const KeyT num_keys = KeyT(init_hash_max * max_load) + 1;
+
 	{
-		map1.clear();
-		constexpr KeyT key_init = 7;
+		map1 = {};
+		const KeyT key_init = init_hash_max;
+
 		KeyT clashing_key = key_init;
-		for (KeyT i = 0; i < key_init; ++i) {
+		for (KeyT i = 0; i < num_keys; ++i) {
+			map1.insert(clashing_key, { i });
+			clashing_key *= 2;
+		}
+
+		map1.erase(key_init);
+		EXPECT_FALSE(map1.contains(key_init));
+
+		clashing_key = key_init * 2;
+		for (KeyT i = 0; i < num_keys - 1; ++i) {
+			EXPECT_TRUE(map1.contains(clashing_key));
+			clashing_key *= 2;
+		}
+	}
+
+	{
+		map1 = {};
+		constexpr KeyT key_init = 6;
+		// constexpr KeyT num_keys = (key_init / 2) + 1;
+		// constexpr KeyT num_keys = key_init - 1;
+
+		KeyT clashing_key = key_init;
+		for (KeyT i = 0; i < num_keys; ++i) {
 			map1.insert(clashing_key, { i });
 			clashing_key *= 2;
 		}
@@ -318,7 +345,7 @@ void do_basic_test() {
 		map1.erase(key_init);
 
 		clashing_key = key_init * 2;
-		for (KeyT i = 0; i < key_init; ++i) {
+		for (KeyT i = 0; i < num_keys - 1; ++i) {
 			EXPECT_TRUE(map1.contains(clashing_key));
 			clashing_key *= 2;
 		}
