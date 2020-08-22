@@ -333,8 +333,6 @@ void do_basic_test() {
 	{
 		map1 = {};
 		constexpr KeyT key_init = 6;
-		// constexpr KeyT num_keys = (key_init / 2) + 1;
-		// constexpr KeyT num_keys = key_init - 1;
 
 		KeyT clashing_key = key_init;
 		for (KeyT i = 0; i < num_keys; ++i) {
@@ -343,6 +341,7 @@ void do_basic_test() {
 		}
 
 		map1.erase(key_init);
+		EXPECT_FALSE(map1.contains(key_init));
 
 		clashing_key = key_init * 2;
 		for (KeyT i = 0; i < num_keys - 1; ++i) {

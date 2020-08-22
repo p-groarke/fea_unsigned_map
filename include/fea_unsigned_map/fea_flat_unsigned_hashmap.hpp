@@ -114,6 +114,9 @@ bool is_prime(T number) {
 template <class T>
 T next_prime(T a) {
 	switch (a) {
+	case 7: {
+		return 7;
+	} break;
 	case 14: {
 		return 17;
 	} break;
@@ -215,11 +218,7 @@ struct flat_unsigned_hashmap {
 
 	// Constructors, destructors and assignement
 
-	flat_unsigned_hashmap()
-			: _lookup(std::vector<lookup_data>(init_count())) {
-		// Starts with 7 elements to optimize some calls.
-		// Uses prime modulo sizes.
-	}
+	flat_unsigned_hashmap() = default;
 	flat_unsigned_hashmap(const flat_unsigned_hashmap&) = default;
 	flat_unsigned_hashmap(flat_unsigned_hashmap&&) = default;
 	flat_unsigned_hashmap& operator=(const flat_unsigned_hashmap&) = default;
@@ -327,8 +326,8 @@ struct flat_unsigned_hashmap {
 
 	// clears the contents
 	void clear() noexcept {
-		_hash_max = init_count() / 2;
-		_lookup = std::vector<lookup_data>(init_count());
+		_hash_max = 0;
+		_lookup.clear();
 		_reverse_lookup.clear();
 		_values.clear();
 	}
@@ -384,7 +383,14 @@ struct flat_unsigned_hashmap {
 			rehash(new_size);
 		}
 
-		auto lookup_it = find_first_slot(key);
+		auto lookup_it = find_first_slot_or_hole(key);
+		if (lookup_it == _lookup.end()) {
+			// Need to grow _lookup for trailing collisions.
+			size_type idx = _lookup.size();
+			_lookup.resize(size_type(_lookup.size() * 1.5f));
+			lookup_it = _lookup.begin() + idx;
+		}
+
 		if (lookup_it->idx != idx_sentinel()) {
 			// Found valid key.
 			return { _values.begin() + lookup_it->idx, false };
@@ -421,7 +427,11 @@ struct flat_unsigned_hashmap {
 		}
 	}
 	size_type erase(key_type k) {
-		auto lookup_it = find_first_slot(k);
+		auto lookup_it = find_first_slot_or_hole(k);
+		if (lookup_it == _lookup.end()) {
+			return 0;
+		}
+
 		if (lookup_it->idx == idx_sentinel()) {
 			return 0;
 		}
@@ -444,7 +454,7 @@ struct flat_unsigned_hashmap {
 		// todo : Better way than doing a key search? could be slow
 		// if we store the index of the key lookup, rehash gets slower
 		key_type last_key = _reverse_lookup.back();
-		auto last_lookup_it = find_first_slot(last_key);
+		auto last_lookup_it = find_first_slot_or_hole(last_key);
 
 		// set new pos on last element.
 		last_lookup_it->idx = lookup_it->idx;
@@ -530,7 +540,11 @@ struct flat_unsigned_hashmap {
 
 	// finds element with specific key
 	const_iterator find(key_type k) const {
-		auto lookup_it = find_first_slot(k);
+		auto lookup_it = find_first_slot_or_hole(k);
+		if (lookup_it == _lookup.end()) {
+			return end();
+		}
+
 		if (lookup_it->idx == idx_sentinel()) {
 			return end();
 		}
@@ -559,7 +573,11 @@ struct flat_unsigned_hashmap {
 
 	// returns average number of elements per bucket
 	float load_factor() const noexcept {
-		return _values.size() / float(hash_max());
+		size_type h_max = hash_max();
+		if (h_max == 0) {
+			return 2.f; // dummy value to trigger growth, must be > 1.f
+		}
+		return _values.size() / float(h_max);
 	}
 
 	float max_load_factor() const noexcept {
@@ -570,11 +588,14 @@ struct flat_unsigned_hashmap {
 	}
 
 	void rehash(size_type count) {
-		count = detail::next_prime(count);
+		if (count < init_count()) {
+			count = init_count();
+		} else {
+			count = detail::next_prime(count);
+		}
 		assert(detail::is_prime(count));
 
-		// Extra space for collisions in-between keys.
-		std::vector<lookup_data> new_lookup(count * 2);
+		std::vector<lookup_data> new_lookup(count);
 
 		for (const lookup_data& lookup : _lookup) {
 			if (lookup.idx == idx_sentinel()) {
@@ -615,12 +636,10 @@ private:
 		idx_type idx = idx_sentinel();
 	};
 
-	// We use this since the hash max is a prime, but we allocate * 2 to have
-	// holes in between keys.
-	// This should always be _lookup.size() / 2
 	size_type hash_max() const {
-		assert(_hash_max == _lookup.size() / 2);
+		assert(detail::is_prime(_hash_max) || _hash_max == 0);
 		return _hash_max;
+		// return _lookup.size();
 	}
 
 	size_type key_to_index(key_type key) const {
@@ -629,8 +648,8 @@ private:
 		return ret;
 	}
 	static constexpr size_type key_to_index(key_type key, size_type h_max) {
-		return (size_type(key) % h_max) * 2;
-		// return size_type(key) % lookup_size;
+		// return (size_type(key) % h_max) * 2;
+		return size_type(key) % h_max;
 	}
 
 	static constexpr key_type key_sentinel() noexcept {
@@ -641,36 +660,15 @@ private:
 	}
 
 	static constexpr size_type init_count() noexcept {
-		return 14; // 7 * 2, hash_max == 7
+		// return 14; // 7 * 2, hash_max == 7
+		return 7;
 	}
 
 	// Custom find_if.
-	// Tests start, then ++start and every odd iterator after that until
-	// sentinel.
-	// If nothing is found in the range [start, end[, wraps around and
-	// tests [beg, start[.
-	// This pattern is used since collisions are only stored
-	// in-between keys (odd indexes).
+	// todo : benchmark simd search
 	template <class Iter, class Func>
-	static auto find_slot(Iter beg, Iter start, Iter end, Func func) {
-
-		// Test first.
-		if (func(*start)) {
-			return start;
-		}
-
-		// Now test "holes" (collisions) for predicate (odd slots only).
-		for (auto it = std::next(start); it < end; std::advance(it, 2)) {
-			assert(std::distance(beg, it) % 2 != 0);
-			if (func(*it)) {
-				return it;
-			}
-		}
-
-		// Didn't find slot, loop around and check odd slots starting from
-		// ++beg.
-		for (auto it = std::next(beg); it < start; std::advance(it, 2)) {
-			assert(std::distance(beg, it) % 2 != 0);
+	static auto find_slot(Iter start, Iter end, Func func) {
+		for (auto it = start; it < end; ++it) {
 			if (func(*it)) {
 				return it;
 			}
@@ -682,21 +680,27 @@ private:
 
 	// Returns lookup iterator to either the lookup if it exists, or the first
 	// free slot.
-	auto find_first_slot(key_type key) const {
+	auto find_first_slot_or_hole(key_type key) const {
+		if (hash_max() == 0) {
+			return _lookup.end();
+		}
+
 		size_type search_pos = key_to_index(key);
 
-		auto it = find_slot(_lookup.begin(), _lookup.begin() + search_pos,
-				_lookup.end(), [&](const lookup_data& search) {
+		auto it = find_slot(_lookup.begin() + search_pos, _lookup.end(),
+				[&](const lookup_data& search) {
 					return search.key == key || search.idx == idx_sentinel();
 				});
 
-		// Something went horribly wrong.
-		assert(it != _lookup.end());
 		return it;
 	}
-	auto find_first_slot(key_type key) {
+	auto find_first_slot_or_hole(key_type key) {
 		auto const_it = static_cast<const flat_unsigned_hashmap*>(this)
-								->find_first_slot(key);
+								->find_first_slot_or_hole(key);
+
+		if (const_it == _lookup.end()) {
+			return _lookup.end();
+		}
 
 		// Convert to non-const iterator.
 		return _lookup.erase(const_it, const_it);
@@ -708,12 +712,12 @@ private:
 
 		// find first free slot
 		auto it = find_slot(
-				beg, beg + bucket_idx, end, [](const lookup_data& search) {
+				beg + bucket_idx, end, [](const lookup_data& search) {
 					return search.idx == idx_sentinel();
 				});
 
-		// Something went horribly wrong.
 		assert(it != end);
+
 		return it;
 	}
 
@@ -728,28 +732,10 @@ private:
 		size_type swap_left_idx = hole_idx;
 		size_type swap_right_idx = hole_idx + 1;
 
-		// Only test odd slots, since that's where collisions are stored.
-		if (swap_right_idx % 2 == 0) {
-			// This can happen if the hole was actually a collision.
-			++swap_right_idx;
-		}
-
-		//// Increments the index appropriately.
-		// auto inc_right_idx = [this](size_type& idx) {
-		//	idx += 2;
-
-		//	// Wrap around if there is no free slot at end of lookup.
-		//	if (idx >= _lookup.size()) {
-		//		idx = 1; // skip first, use odd slots
-		//	}
-		//};
-
 		// Sort the collisions.
 		// Do this until you find a hole. The container must guarantee
 		// collisions are packed in a first serve manner.
 		while (swap_right_idx < _lookup.size()) {
-			assert(swap_right_idx % 2 != 0); // only odds
-
 			if (_lookup[swap_right_idx].idx == idx_sentinel()) {
 				// We are done, have reached the end of this collision "group".
 				return;
@@ -762,7 +748,7 @@ private:
 			size_type candidate_idx = key_to_index(_lookup[swap_right_idx].key);
 			if (candidate_idx > swap_left_idx) {
 				// Continue searching for swappable collisions.
-				swap_right_idx += 2;
+				++swap_right_idx;
 				continue;
 			}
 
@@ -771,52 +757,7 @@ private:
 			right = {}; // Invalidate in case it is the last.
 
 			swap_left_idx = swap_right_idx;
-			swap_right_idx += 2;
-		}
-
-
-		// If we reach here, we need to wrap around container and pack up-to
-		// hole_idx.
-
-		// todo : figure this out!
-		// assert(false);
-		swap_right_idx = 1; // start at first odd.
-
-		while (swap_right_idx < hole_idx) {
-			assert(swap_right_idx % 2 != 0); // only odds
-
-			if (_lookup[swap_right_idx].idx == idx_sentinel()) {
-				return;
-			}
-
-			size_type candidate_idx = key_to_index(_lookup[swap_right_idx].key);
-
-			if (swap_left_idx >= hole_idx) {
-				// We are after the initial hole, aka the end of the container.
-				// Check that the candidate belongs at the end of the container,
-				// but does not belong at the beginning.
-				if (candidate_idx > swap_left_idx || candidate_idx < hole_idx) {
-					swap_right_idx += 2;
-					continue;
-				}
-			} else {
-				// We are before the initial hole, aka the beginning of the
-				// container.
-				// Normal behavior.
-
-				if (candidate_idx > swap_left_idx) {
-					// Continue searching for swappable collisions.
-					swap_right_idx += 2;
-					continue;
-				}
-			}
-
-			lookup_data& right = _lookup[swap_right_idx];
-			_lookup[swap_left_idx] = right;
-			right = {}; // Invalidate in case it is the last.
-
-			swap_left_idx = swap_right_idx;
-			swap_right_idx += 2;
+			++swap_right_idx;
 		}
 
 		// Something went horribly wrong.
@@ -831,7 +772,14 @@ private:
 			rehash(new_size);
 		}
 
-		auto lookup_it = find_first_slot(key);
+		auto lookup_it = find_first_slot_or_hole(key);
+		if (lookup_it == _lookup.end()) {
+			// Need to grow _lookup for trailing collisions.
+			size_type idx = _lookup.size();
+			_lookup.resize(size_type(idx * 1.5));
+			lookup_it = _lookup.begin() + idx;
+		}
+
 		if (lookup_it->idx != idx_sentinel()) {
 			// Found valid key.
 
@@ -849,6 +797,8 @@ private:
 		lookup_it->idx = new_pos;
 
 		assert(_reverse_lookup.size() == _values.size());
+		assert(_values.size() < idx_sentinel()
+				&& "container has reached max capacity");
 		return { begin() + new_pos, true };
 	}
 
@@ -859,12 +809,10 @@ private:
 	// bad.
 	float _max_load_factor = .75f;
 
-	// The hash max value is the current theoretical size of the lookup,
-	// ignoring extra space for collisions.
-	// Because of our bucket scheme, we keep track of this value seperately than
-	// the actual size of the lookup vector.
-	// Hash max is always a prime, and will be used to modulo the user keys.
-	size_type _hash_max = init_count() / 2;
+	// The hash max value is the current theoretical size of the lookup.
+	// It is decoupled from _lookup.size() to allow growing lookup in certain
+	// situations (when adding collisions at the end, requires growing lookup).
+	size_type _hash_max = 0;
 
 	// Stores the key at hash and points to the values index.
 	// Lookups at odd indexes are collisions stored in-place.
