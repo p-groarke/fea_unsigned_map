@@ -1,7 +1,9 @@
 ﻿#include <fea_unsigned_map/fea_flat_unsigned_hashmap.hpp>
 #include <gtest/gtest.h>
 #include <memory>
+#include <random>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace {
 struct test2 {
@@ -358,6 +360,7 @@ TEST(flat_unsigned_hashmap, basics) {
 	do_basic_test<uint64_t>();
 }
 
+
 TEST(flat_unsigned_hashmap, uniqueptr) {
 	fea::flat_unsigned_hashmap<size_t, std::unique_ptr<unsigned>> map;
 
@@ -392,5 +395,102 @@ TEST(flat_unsigned_hashmap, uniqueptr) {
 	EXPECT_EQ(map.size(), 0u);
 }
 
+template <class KeyT>
+std::vector<KeyT> get_random_vec(size_t size) {
+	std::vector<KeyT> ret(size);
+
+
+	return ret;
+}
+
+template <class KeyT>
+void do_fuzz_test() {
+	constexpr size_t max_val = 254;
+
+	fea::flat_unsigned_hashmap<KeyT, KeyT> map;
+
+	auto test_it = [&](const std::vector<KeyT>& rand_numbers) {
+		std::unordered_map<KeyT, size_t> visited;
+
+		for (size_t i = 0; i < rand_numbers.size(); ++i) {
+			KeyT k = rand_numbers[i];
+			if (visited.count(k) == 0) {
+				EXPECT_FALSE(map.contains(k));
+				visited.insert({ k, 0 });
+			}
+
+			map.emplace(k, k);
+			map.insert(k, k);
+			map.insert_or_assign(k, k);
+
+			++visited.at(k);
+
+			EXPECT_TRUE(map.contains(k));
+			EXPECT_EQ(map.at(k), k);
+		}
+
+		for (size_t i = 0; i < rand_numbers.size(); ++i) {
+			KeyT k = KeyT(rand_numbers[i]);
+
+			if (visited.at(k) != 0) {
+				EXPECT_TRUE(map.contains(k));
+				EXPECT_EQ(map.at(k), k);
+				map.erase(k);
+				visited.at(k) = 0;
+			}
+
+			if (visited.at(k) == 0) {
+				EXPECT_FALSE(map.contains(k));
+			}
+		}
+
+		EXPECT_EQ(map.size(), 0);
+	};
+
+	// Contiguous vals random.
+	std::vector<KeyT> rand_numbers(254);
+	std::iota(rand_numbers.begin(), rand_numbers.end(), KeyT(0));
+	auto rng = std::mt19937_64{};
+	std::shuffle(rand_numbers.begin(), rand_numbers.end(), rng);
+	test_it(rand_numbers);
+
+	// Contiguous vals random.
+	rand_numbers.clear();
+	rand_numbers.resize(127);
+	std::iota(rand_numbers.begin(), rand_numbers.end(), KeyT(0));
+	std::shuffle(rand_numbers.begin(), rand_numbers.end(), rng);
+	test_it(rand_numbers);
+
+	// Random vals with duplicates.
+	rand_numbers.clear();
+	std::uniform_int_distribution<size_t> uni_dist{ 0, 254 };
+	for (size_t i = 0; i < 254; ++i) {
+		rand_numbers.push_back(KeyT(uni_dist(rng)));
+	}
+	test_it(rand_numbers);
+
+	// Random vals with duplicates.
+	rand_numbers.clear();
+	uni_dist = { 0, 127 };
+	for (size_t i = 0; i < 254; ++i) {
+		rand_numbers.push_back(KeyT(uni_dist(rng)));
+	}
+	test_it(rand_numbers);
+
+	// Random vals with duplicates.
+	rand_numbers.clear();
+	std::normal_distribution<> norm_dist{ 0, 254 };
+	for (size_t i = 0; i < 254; ++i) {
+		rand_numbers.push_back(KeyT(uni_dist(rng)));
+	}
+	test_it(rand_numbers);
+}
+
+TEST(flat_unsigned_hashmap, fuzzing) {
+	do_fuzz_test<uint8_t>();
+	do_fuzz_test<uint16_t>();
+	do_fuzz_test<uint32_t>();
+	do_fuzz_test<uint64_t>();
+}
 
 } // namespace

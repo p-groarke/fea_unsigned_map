@@ -387,7 +387,7 @@ struct flat_unsigned_hashmap {
 		if (lookup_it == _lookup.end()) {
 			// Need to grow _lookup for trailing collisions.
 			size_type idx = _lookup.size();
-			_lookup.resize(size_type(_lookup.size() * 1.5f));
+			_lookup.resize(size_type(_lookup.size() * 1.25));
 			lookup_it = _lookup.begin() + idx;
 		}
 
@@ -442,8 +442,7 @@ struct flat_unsigned_hashmap {
 
 		if (lookup_it->idx == _values.size() - 1) {
 			// No need for swap, object is already at end.
-			lookup_it->key = {};
-			lookup_it->idx = idx_sentinel();
+			*lookup_it = {};
 			_reverse_lookup.pop_back();
 			_values.pop_back();
 			assert(_values.size() == _reverse_lookup.size());
@@ -776,7 +775,7 @@ private:
 		if (lookup_it == _lookup.end()) {
 			// Need to grow _lookup for trailing collisions.
 			size_type idx = _lookup.size();
-			_lookup.resize(size_type(idx * 1.5));
+			_lookup.resize(size_type(idx * 1.25));
 			lookup_it = _lookup.begin() + idx;
 		}
 
