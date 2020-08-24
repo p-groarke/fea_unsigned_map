@@ -32,7 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 #include <algorithm>
 #include <cassert>
-#include <intrin.h>
+#include <immintrin.h>
 #include <iterator>
 #include <numeric>
 #include <stdexcept>
