@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 #include <algorithm>
 #include <cassert>
+#include <intrin.h>
+#include <iterator>
 #include <numeric>
 #include <stdexcept>
 #include <type_traits>
@@ -61,6 +63,13 @@ Its special characteristics are :
 
 namespace fea {
 namespace detail {
+template <class T>
+constexpr std::add_const_t<T>& as_const(T& t) noexcept {
+	return t;
+}
+template <class T>
+void as_const(const T&&) = delete;
+
 template <class T>
 inline constexpr std::conditional_t<!std::is_move_constructible<T>::value
 				&& std::is_copy_constructible<T>::value,
@@ -634,12 +643,20 @@ struct flat_unsigned_hashmap {
 
 private:
 	struct lookup_data {
+		static_assert(sizeof(key_type) == sizeof(idx_type)
+						&& alignof(key_type) == alignof(idx_type),
+				"reminder : lookups are loaded into SIMD registers");
+
 		// The user provided key.
 		key_type key = key_sentinel();
 
 		// The index of the user data in the _values container.
 		idx_type idx = idx_sentinel();
 	};
+
+	static_assert(sizeof(lookup_data) >= 2 && sizeof(lookup_data) <= 16
+					&& sizeof(lookup_data) % 2 == 0,
+			"reminder : update SIMD find to match new lookup_data size");
 
 	size_type hash_max() const {
 		assert(detail::is_prime(_hash_max) || _hash_max == 0);
@@ -669,10 +686,17 @@ private:
 		return 7;
 	}
 
+	using epi8_tag = std::integral_constant<size_type, 2>;
+	using epi16_tag = std::integral_constant<size_type, 4>;
+	using epi32_tag = std::integral_constant<size_type, 8>;
+	using epi64_tag = std::integral_constant<size_type, 16>;
+
+
 	// Custom find_if.
 	// todo : benchmark simd search
 	template <class Iter, class Func>
 	static auto find_slot(Iter start, Iter end, Func func) {
+
 		for (auto it = start; it < end; ++it) {
 			if (func(*it)) {
 				return it;
@@ -683,6 +707,90 @@ private:
 		return end;
 	}
 
+	// Find the first bit set (first non 0 bit). Also string.h ffs().
+	static size_type x_platform_bsf(unsigned long mask) {
+#if defined(_MSC_VER)
+		unsigned long pos;
+		_BitScanForward(&pos, mask);
+		return size_type(pos);
+#else
+		return __builtin_ctz(mask);
+#endif
+	}
+
+	static __m128i simd_search_term(key_type key, epi8_tag) {
+		// todo : test static const
+		return _mm_set_epi8(idx_sentinel(), key, idx_sentinel(), key,
+				idx_sentinel(), key, idx_sentinel(), key, idx_sentinel(), key,
+				idx_sentinel(), key, idx_sentinel(), key, idx_sentinel(), key);
+	}
+	static __m128i simd_search_term(key_type key, epi16_tag) {
+		return _mm_set_epi16(idx_sentinel(), key, idx_sentinel(), key,
+				idx_sentinel(), key, idx_sentinel(), key);
+	}
+	static __m128i simd_search_term(key_type key, epi32_tag) {
+		return _mm_set_epi32(idx_sentinel(), key, idx_sentinel(), key);
+	}
+	static __m128i simd_search_term(key_type key, epi64_tag) {
+		return _mm_set_epi64x(idx_sentinel(), key);
+	}
+
+	static size_type simd_first_slot_or_hole(
+			const __m128i& xmm, const __m128i& xmm_search, epi8_tag) {
+
+		__m128i xmm_ans = _mm_cmpeq_epi8(xmm, xmm_search);
+		unsigned mask = _mm_movemask_epi8(xmm_ans);
+
+		if (mask != 0) {
+			// Found either the key or an idx_sentinel.
+			// divide found_idx by 2 since the lookup_data is 2 members
+			return size_type(x_platform_bsf(mask) * .5);
+		}
+		return (std::numeric_limits<size_type>::max)();
+	}
+	static size_type simd_first_slot_or_hole(
+			const __m128i& xmm, const __m128i& xmm_search, epi16_tag) {
+
+		__m128i xmm_ans = _mm_cmpeq_epi16(xmm, xmm_search);
+		unsigned mask = _mm_movemask_epi8(xmm_ans);
+
+		if (mask != 0) {
+			// Found either the key or an idx_sentinel.
+			// divide found_idx by 2 since the lookup_data is 2 members
+			// divide by an extra 2 because there are 2 bits per result
+			return size_type(x_platform_bsf(mask) * .25);
+		}
+		return (std::numeric_limits<size_type>::max)();
+	}
+	static size_type simd_first_slot_or_hole(
+			const __m128i& xmm, const __m128i& xmm_search, epi32_tag) {
+
+		__m128i xmm_ans = _mm_cmpeq_epi32(xmm, xmm_search);
+		unsigned mask = _mm_movemask_epi8(xmm_ans);
+
+		if (mask != 0) {
+			// Found either the key or an idx_sentinel.
+			// divide found_idx by 2 since the lookup_data is 2 members
+			// divide by an extra 4 because there are 4 bits per result
+			return size_type(x_platform_bsf(mask) * .125);
+		}
+		return (std::numeric_limits<size_type>::max)();
+	}
+	static size_type simd_first_slot_or_hole(
+			const __m128i& xmm, const __m128i& xmm_search, epi64_tag) {
+
+		__m128i xmm_ans = _mm_cmpeq_epi64(xmm, xmm_search);
+		unsigned mask = _mm_movemask_epi8(xmm_ans);
+
+		if (mask != 0) {
+			// Found either the key or an idx_sentinel.
+			// divide found_idx by 2 since the lookup_data is 2 members
+			// divide by an extra 8 because there are 8 bits per result
+			return size_type(x_platform_bsf(mask) * .0625);
+		}
+		return (std::numeric_limits<size_type>::max)();
+	}
+
 	// Returns lookup iterator to either the lookup if it exists, or the first
 	// free slot.
 	auto find_first_slot_or_hole(key_type key) const {
@@ -690,25 +798,61 @@ private:
 			return _lookup.end();
 		}
 
+		assert(offsetof(lookup_data, key) == 0
+				&& "reminder : moving lookup_data variables around will kill "
+				   "simd");
+
+		constexpr size_type register_size = 16;
+		constexpr size_type loop_inc = register_size / sizeof(lookup_data);
+		constexpr auto simd_tag
+				= std::integral_constant<size_type, sizeof(lookup_data)>{};
+
 		size_type search_pos = key_to_index(key);
+		auto start_it = _lookup.begin() + search_pos;
 
-		auto it = find_slot(_lookup.begin() + search_pos, _lookup.end(),
-				[&](const lookup_data& search) {
-					return search.key == key || search.idx == idx_sentinel();
-				});
+		size_type count = std::distance(start_it, _lookup.end());
+		const lookup_data* start_ptr = &(*start_it);
+		size_type simd_count = count - (count % loop_inc);
 
-		return it;
+		// todo : compare static const
+		// this is our simd search, key and sentinel
+		const __m128i xmm_search = simd_search_term(key, simd_tag);
+
+		// process chunks of n lookup_data at a time.
+		size_type found_idx = (std::numeric_limits<size_type>::max)();
+		size_type i = 0;
+		for (; i < simd_count; i += loop_inc) {
+			__m128i xmm0 = _mm_loadu_si128(
+					reinterpret_cast<const __m128i*>(start_ptr + i));
+
+			found_idx = simd_first_slot_or_hole(xmm0, xmm_search, simd_tag);
+			if (found_idx != (std::numeric_limits<size_type>::max)()) {
+				return start_it + (i + found_idx);
+			}
+		}
+
+		// remainder
+		for (; i < count; ++i) {
+			if (start_ptr[i].key == key || start_ptr[i].idx == idx_sentinel()) {
+				return start_it + i;
+			}
+		}
+
+		return _lookup.end();
 	}
 	auto find_first_slot_or_hole(key_type key) {
 		auto const_it = static_cast<const flat_unsigned_hashmap*>(this)
 								->find_first_slot_or_hole(key);
 
-		if (const_it == _lookup.end()) {
-			return _lookup.end();
-		}
+		return _lookup.begin()
+				+ std::distance(detail::as_const(_lookup).begin(), const_it);
 
-		// Convert to non-const iterator.
-		return _lookup.erase(const_it, const_it);
+		// if (const_it == _lookup.end()) {
+		//	return _lookup.end();
+		//}
+
+		//// Convert to non-const iterator.
+		// return _lookup.erase(const_it, const_it);
 	}
 
 	// Find first free slot given a lookup idx.
