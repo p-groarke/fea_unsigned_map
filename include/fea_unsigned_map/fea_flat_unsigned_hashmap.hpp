@@ -387,7 +387,7 @@ struct flat_unsigned_hashmap {
 		if (lookup_it == _lookup.end()) {
 			// Need to grow _lookup for trailing collisions.
 			size_type idx = _lookup.size();
-			_lookup.resize(size_type(_lookup.size() * 1.25));
+			_lookup.resize(size_type(_lookup.size() * _lookup_trailing_amount));
 			lookup_it = _lookup.begin() + idx;
 		}
 
@@ -606,6 +606,12 @@ struct flat_unsigned_hashmap {
 			auto it = find_first_hole(
 					new_lookup.begin(), new_lookup.end(), new_bucket_pos);
 
+			if (it == new_lookup.end()) {
+				size_type idx = new_lookup.size();
+				new_lookup.resize(size_type(idx * _lookup_trailing_amount));
+				it = new_lookup.begin() + idx;
+			}
+
 			// creates new lookup, assigns the existing element pos
 			it->key = lookup.key;
 			it->idx = lookup.idx;
@@ -775,7 +781,7 @@ private:
 		if (lookup_it == _lookup.end()) {
 			// Need to grow _lookup for trailing collisions.
 			size_type idx = _lookup.size();
-			_lookup.resize(size_type(idx * 1.25));
+			_lookup.resize(size_type(idx * _lookup_trailing_amount));
 			lookup_it = _lookup.begin() + idx;
 		}
 
@@ -826,6 +832,10 @@ private:
 	// This means we cannot fulfill standard apis.
 	// todo : make unsigned_hashmap for cases when you need pair iterators.
 	std::vector<value_type> _values;
+
+	// When the lookup collisions fill up the end of the lookup container, by
+	// how much do we resize it?
+	constexpr static double _lookup_trailing_amount = 1.25;
 };
 
 template <class Key, class T>
