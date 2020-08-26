@@ -448,7 +448,7 @@ void do_fuzz_test() {
 	};
 
 	// Contiguous vals random.
-	std::vector<KeyT> rand_numbers(254);
+	std::vector<KeyT> rand_numbers(max_val);
 	std::iota(rand_numbers.begin(), rand_numbers.end(), KeyT(0));
 	auto rng = std::mt19937_64{};
 	std::shuffle(rand_numbers.begin(), rand_numbers.end(), rng);
@@ -456,31 +456,31 @@ void do_fuzz_test() {
 
 	// Contiguous vals random.
 	rand_numbers.clear();
-	rand_numbers.resize(127);
+	rand_numbers.resize(max_val / 2);
 	std::iota(rand_numbers.begin(), rand_numbers.end(), KeyT(0));
 	std::shuffle(rand_numbers.begin(), rand_numbers.end(), rng);
 	test_it(rand_numbers);
 
 	// Random vals with duplicates.
 	rand_numbers.clear();
-	std::uniform_int_distribution<size_t> uni_dist{ 0, 254 };
-	for (size_t i = 0; i < 254; ++i) {
+	std::uniform_int_distribution<size_t> uni_dist{ 0, max_val };
+	for (size_t i = 0; i < max_val; ++i) {
 		rand_numbers.push_back(KeyT(uni_dist(rng)));
 	}
 	test_it(rand_numbers);
 
 	// Random vals with duplicates.
 	rand_numbers.clear();
-	uni_dist = { 0, 127 };
-	for (size_t i = 0; i < 254; ++i) {
+	uni_dist = std::uniform_int_distribution<size_t>{ 0, max_val / 2 };
+	for (size_t i = 0; i < max_val; ++i) {
 		rand_numbers.push_back(KeyT(uni_dist(rng)));
 	}
 	test_it(rand_numbers);
 
 	// Random vals with duplicates.
 	rand_numbers.clear();
-	std::normal_distribution<> norm_dist{ 0, 254 };
-	for (size_t i = 0; i < 254; ++i) {
+	std::normal_distribution<> norm_dist{ 0, max_val };
+	for (size_t i = 0; i < max_val; ++i) {
 		rand_numbers.push_back(KeyT(uni_dist(rng)));
 	}
 	test_it(rand_numbers);
