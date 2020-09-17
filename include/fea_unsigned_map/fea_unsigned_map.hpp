@@ -305,7 +305,7 @@ struct unsigned_map {
 		}
 
 		// swap & pop
-		pos_type value_idx = std::distance(_values.begin(), it);
+		pos_type value_idx = pos_type(std::distance(_values.begin(), it));
 		key_type last_key = _values.back().first;
 
 		*it = detail::maybe_move(_values.back());
