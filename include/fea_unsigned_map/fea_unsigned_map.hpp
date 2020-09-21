@@ -442,7 +442,7 @@ private:
 			throw std::out_of_range{ "unsigned_map : maximum size reached\n" };
 		}
 
-		_value_indexes.resize(k + key_type(1), pos_sentinel());
+		_value_indexes.resize(size_t(k) + 1u, pos_sentinel());
 	}
 
 	template <class M>
