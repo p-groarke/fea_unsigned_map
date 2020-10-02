@@ -193,7 +193,9 @@ struct flat_unsigned_hashmap {
 	using mapped_type = T;
 	using value_type = mapped_type;
 	using size_type = std::size_t;
-	using idx_type = Key;
+	using idx_type =
+			typename std::conditional<sizeof(key_type) <= sizeof(size_type),
+					key_type, size_type>::type;
 	using difference_type = std::ptrdiff_t;
 
 	using allocator_type = typename std::vector<value_type>::allocator_type;

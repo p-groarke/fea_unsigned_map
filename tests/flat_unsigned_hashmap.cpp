@@ -14,8 +14,9 @@ struct test2 {
 	test2& operator=(const test2&) = default;
 	test2& operator=(test2&&) = default;
 
-	test2(size_t v)
-			: val(v) {
+	template <class T>
+	test2(T v)
+			: val(size_t(v)) {
 	}
 
 	size_t val = 42;
@@ -31,7 +32,7 @@ template <class KeyT>
 void do_basic_test() {
 	constexpr KeyT small_num = 10;
 
-	fea::flat_unsigned_hashmap<KeyT, test2> map1{ small_num };
+	fea::flat_unsigned_hashmap<KeyT, test2> map1{ size_t(small_num) };
 	map1.reserve(100);
 	EXPECT_EQ(map1.capacity(), 100u);
 	map1.shrink_to_fit();
@@ -124,7 +125,7 @@ void do_basic_test() {
 	}
 
 	map1.erase(1);
-	EXPECT_EQ(map1.size(), small_num - 1);
+	EXPECT_EQ(map1.size(), small_num - 1u);
 	EXPECT_NE(map1, map2);
 	EXPECT_NE(map1, map3);
 	EXPECT_FALSE(map1.contains(1));
@@ -151,7 +152,7 @@ void do_basic_test() {
 	map1 = std::move(map_ded);
 
 	map1.erase(map1.begin());
-	EXPECT_EQ(map1.size(), small_num - 1);
+	EXPECT_EQ(map1.size(), small_num - 1u);
 	EXPECT_NE(map1, map2);
 	EXPECT_NE(map1, map3);
 	EXPECT_FALSE(map1.contains(0));
@@ -169,7 +170,7 @@ void do_basic_test() {
 			++it;
 		}
 	}
-	EXPECT_EQ(map1.size(), small_num / 2);
+	EXPECT_EQ(map1.size(), small_num / 2u);
 
 	for (auto t : map1) {
 		EXPECT_EQ(t.val % 2, 0u);
@@ -308,9 +309,9 @@ void do_basic_test() {
 	// EXPECT_EQ(map2, map3);
 
 	// erase
-	const KeyT init_hash_max = 7;
+	const KeyT init_hash_max = 7u;
 	const float max_load = map1.max_load_factor();
-	const KeyT num_keys = KeyT(init_hash_max * max_load) + 1;
+	const KeyT num_keys = KeyT(init_hash_max * max_load) + 1u;
 
 	{
 		map1 = {};
@@ -444,7 +445,7 @@ void do_fuzz_test() {
 			}
 		}
 
-		EXPECT_EQ(map.size(), 0);
+		EXPECT_EQ(map.size(), 0u);
 	};
 
 	// Contiguous vals random.
@@ -479,7 +480,7 @@ void do_fuzz_test() {
 
 	// Random vals with duplicates.
 	rand_numbers.clear();
-	std::normal_distribution<> norm_dist{ 0, max_val };
+	std::normal_distribution<> norm_dist{ 0.0, double(max_val) };
 	for (size_t i = 0; i < max_val; ++i) {
 		rand_numbers.push_back(KeyT(uni_dist(rng)));
 	}

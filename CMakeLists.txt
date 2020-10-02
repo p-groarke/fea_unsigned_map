@@ -10,6 +10,8 @@ include(GoogleTest)
 
 # Require up-to-date compiler.
 set(CMAKE_CXX_STANDARD 14)
+
+# Conan search paths.
 set(CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR} ${CMAKE_MODULE_PATH})
 set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR} ${CMAKE_PREFIX_PATH})
 
@@ -41,26 +43,31 @@ function(set_compile_options REQUIRED_ARG EXPOSURE)
 	  # using Intel C++
 	elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 		target_compile_definitions(${REQUIRED_ARG} ${EXPOSURE} NOMINMAX UNICODE _UNICODE)
-		target_compile_options(${REQUIRED_ARG} ${EXPOSURE} /Zc:__cplusplus /Zc:alignedNew /permissive- /FAs /permissive- /W4 /WX /utf-8)
+		target_compile_options(${REQUIRED_ARG} ${EXPOSURE} /Zc:__cplusplus /Zc:alignedNew /permissive- /FAs /W4 /WX /utf-8)
 		# set_target_properties(${REQUIRED_ARG} PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	endif()
 endfunction()
 
+# clang-format
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.clang-format ${CMAKE_CURRENT_BINARY_DIR}/.clang-format COPYONLY)
 
-# Project
+
+# Main Project
 file(GLOB_RECURSE HEADER_FILES "${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}/*.hpp")
 add_library(${PROJECT_NAME} INTERFACE)
+set_compile_options(${PROJECT_NAME} INTERFACE)
+
+# To see files in IDE
 target_sources(${PROJECT_NAME} INTERFACE
 	"$<BUILD_INTERFACE:${HEADER_FILES}>"
 )
+
+# Interface
 target_include_directories(${PROJECT_NAME} INTERFACE
 	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-set_compile_options(${PROJECT_NAME} INTERFACE)
 
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.clang-format ${CMAKE_CURRENT_BINARY_DIR}/.clang-format COPYONLY)
 
 # Install Package Configuration
 install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}_targets)
@@ -74,24 +81,23 @@ install(EXPORT ${PROJECT_NAME}_targets
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
 
-
 # Tests
 option(FEA_UNSIGNED_MAP_TESTS "Build and run tests." On)
 option(FEA_UNSIGNED_MAP_BENCHMARKS "Build and run bencharks, requires tests." Off)
 if (${FEA_UNSIGNED_MAP_TESTS})
 	enable_testing()
-	
-	##
-	# External dependencies.
-	##
-	FetchContent_Declare(bench_util
-		GIT_REPOSITORY https://github.com/p-groarke/bench_util.git
+
+	# Tests external dependencies.
+	FetchContent_Declare(fea_benchmark
+		GIT_REPOSITORY https://github.com/p-groarke/fea_benchmark.git
 	)
-	FetchContent_MakeAvailable(bench_util)
-	set_target_properties(bench_util_tests PROPERTIES FOLDER ${DEPENDENCY_FOLDER})
+	FetchContent_MakeAvailable(fea_benchmark)
+	set_target_properties(fea_benchmark_tests PROPERTIES FOLDER ${DEPENDENCY_FOLDER})
 
 	find_package(GTest CONFIG REQUIRED)
 
+
+	# Test Project
 	set(TEST_NAME ${PROJECT_NAME}_tests)
 	file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp" "tests/*.c" "tests/*.hpp" "tests/*.h" "tests/*.tpp")
 	add_executable(${TEST_NAME} ${TEST_SOURCES})
@@ -101,7 +107,7 @@ if (${FEA_UNSIGNED_MAP_TESTS})
 		target_compile_definitions(${TEST_NAME} PRIVATE FEA_BENCHMARKS)
 	endif()
 
-	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} GTest::GTest bench_util)
+	target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME} GTest::GTest fea_benchmark)
 	
 	gtest_discover_tests(${TEST_NAME})
 	add_dependencies(${TEST_NAME} ${PROJECT_NAME})
