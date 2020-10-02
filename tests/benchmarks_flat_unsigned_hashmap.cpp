@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <array>
-#include <bench_util/bench_util.h>
 #include <cstdio>
+#include <fea_benchmark/fea_benchmark.hpp>
 #include <fea_unsigned_map/fea_flat_unsigned_hashmap.hpp>
 #include <gtest/gtest.h>
 #include <map>
@@ -52,7 +52,7 @@ void benchmarks(const std::vector<size_t>& keys) {
 	std::array<char, 128> title;
 	title.fill('\0');
 
-	bench::suite suite;
+	fea::bench::suite suite;
 	// suite.sleep_between(1s);
 
 	// Containers
@@ -468,7 +468,7 @@ TEST(flat_unsigned_hashmap, benchmarks) {
 		std::snprintf(title.data(), title.size(),
 				"Benchmark using linear keys, 0 to %zu, no duplicates",
 				num_keys / 2);
-		bench::title(title.data());
+		fea::bench::title(title.data());
 
 		benchmarks(keys);
 	}
@@ -486,7 +486,7 @@ TEST(flat_unsigned_hashmap, benchmarks) {
 		std::snprintf(title.data(), title.size(),
 				"Benchmark using linear keys, %zu to 0, no duplicates",
 				num_keys / 2);
-		bench::title(title.data());
+		fea::bench::title(title.data());
 
 		benchmarks(keys);
 	}
@@ -509,7 +509,7 @@ TEST(flat_unsigned_hashmap, benchmarks) {
 				"Benchmark using %zu random uniform distribution keys, with "
 				"duplicates",
 				num_keys);
-		bench::title(title.data());
+		fea::bench::title(title.data());
 
 		benchmarks(keys);
 	}
@@ -526,7 +526,7 @@ TEST(flat_unsigned_hashmap, benchmarks) {
 		title.fill('\0');
 		std::snprintf(title.data(), title.size(),
 				"Benchmark using %zu rand() keys, many duplicates", num_keys);
-		bench::title(title.data());
+		fea::bench::title(title.data());
 
 		benchmarks(keys);
 	}
