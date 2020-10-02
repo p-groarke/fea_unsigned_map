@@ -32,7 +32,7 @@ template <class KeyT>
 void do_basic_test() {
 	constexpr KeyT small_num = 10;
 
-	fea::flat_unsigned_hashmap<KeyT, test2> map1{ small_num };
+	fea::flat_unsigned_hashmap<KeyT, test2> map1{ size_t(small_num) };
 	map1.reserve(100);
 	EXPECT_EQ(map1.capacity(), 100u);
 	map1.shrink_to_fit();
@@ -480,7 +480,7 @@ void do_fuzz_test() {
 
 	// Random vals with duplicates.
 	rand_numbers.clear();
-	std::normal_distribution<> norm_dist{ 0, max_val };
+	std::normal_distribution<> norm_dist{ 0.0, double(max_val) };
 	for (size_t i = 0; i < max_val; ++i) {
 		rand_numbers.push_back(KeyT(uni_dist(rng)));
 	}
