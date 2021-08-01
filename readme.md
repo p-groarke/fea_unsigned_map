@@ -1,3 +1,10 @@
+<br/>
+
+# This repository is inactive and kept for posterity's sake.
+# Any further development will happen in [fea_libs](https://github.com/p-groarke/fea_libs). Cheers.
+<br/>
+<br/>
+
 # fea_unsigned_map
 [![Build Status](https://travis-ci.org/p-groarke/fea_unsigned_map.svg?branch=master)](https://travis-ci.org/p-groarke/fea_unsigned_map)
 [![Build status](https://ci.appveyor.com/api/projects/status/3aljp09xanvka0qy/branch/master?svg=true)](https://ci.appveyor.com/project/p-groarke/fea-unsigned-map/branch/master)
